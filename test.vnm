@@ -1,0 +1,29 @@
+App<state, event> = App(state initialState, state(event, state) update, Html(state) view)
+State = State(Int counter = 0, String text)
+Event = Increment | Decrement
+
+app = App(
+    initialState = State(text = "Hello world!")!(),
+    update = update,
+    view = view
+)
+
+State update(Event event, State state) =
+    if event is
+        Increment then state(counter = state.counter + 1)
+        Decrement then state(counter = state.counter - 1)
+
+Html view(State state) =
+    let text = Div(children = [Text(state.text)])
+        label = Div(children = [Text(toString(state.counter))])
+        up = Div(children = [Text("+")], onClick = Increment())
+        down = Div(children = [Text("-")], onClick = Decrement())
+        parity = Div(children = [Text(
+            if state.counter % 2 == 0 then
+                "Even"
+            else if state.counter == 7 then
+                "Lucky"
+            else
+                "Odd"
+        )])
+    in Div(children = [text, label, up, down, parity])
