@@ -1,14 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import Data.Text (Text)
-import Data.Void
-
-type Parser = Parsec Void Text
+import Lexer
 
 main :: IO ()
-main =
-    parseTest (satisfy (== 'a') :: Parser Char) "b"
+main = do
+    let tokens = Lexer.lex "value = if test == 2 then 4 else 6"
+    print tokens
