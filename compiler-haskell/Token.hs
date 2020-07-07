@@ -13,10 +13,23 @@ data TokenType
     -- Characters
     | LeftParen
     | RightParen
+    | LeftBracket
+    | RightBracket
+    | LeftAngle
+    | RightAngle
     | Equals
+    | PartialApplication
+    | Union
     -- Operators
     | Equality
     | Inequality
+    | Modulo
+    | Pipe
+    | ReversePipe
+    | PartialPipe
+    | ReversePartialPipe
+    | Or
+    | And
     -- Symbols
     | DataType String
     | Value String
@@ -31,9 +44,9 @@ data TokenPosition = TokenPosition
     , column :: Integer
     } deriving Show
 
-matchKeyword :: String -> Maybe(TokenType)
+matchKeyword :: String -> TokenType
 matchKeyword text = case text of
-    "if" -> Just If
-    "then" -> Just Then
-    "else" -> Just Else
-    _ -> Nothing
+    "if" -> If
+    "then" -> Then
+    "else" -> Else
+    _ -> Value text
