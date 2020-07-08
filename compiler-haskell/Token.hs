@@ -7,36 +7,45 @@ data Token = Token
 
 data TokenType
     -- Keywords
-    = If
-    | Then
-    | Else
+    = If -- if
+    | Then -- then
+    | Else -- else
+    | Is -- is
     -- Characters
-    | LeftParen
-    | RightParen
-    | LeftBracket
-    | RightBracket
-    | LeftAngle
-    | RightAngle
-    | Equals
-    | PartialApplication
-    | Union
+    | LeftParen -- (
+    | RightParen -- )
+    | PartialRightParen -- )!
+    | LeftBracket -- [
+    | RightBracket -- ]
+    | LeftAngle -- <
+    | RightAngle -- >
+    | Equals -- =
+    | Union -- |
+    | Comma -- ,
+    | Dot -- .
     -- Operators
-    | Equality
-    | Inequality
-    | Modulo
-    | Pipe
-    | ReversePipe
-    | PartialPipe
-    | ReversePartialPipe
-    | Or
-    | And
+    | Equality -- ==
+    | Inequality -- /=
+    | Plus -- +
+    | Minus -- -
+    | Modulo -- %
+    | Pipe -- |>
+    | ReversePipe -- <|
+    | PartialPipe -- !>
+    | ReversePartialPipe -- <!
+    | Or -- ||
+    | And -- &&
     -- Symbols
-    | DataType String
-    | Value String
+    | DataType String -- DataType
+    | Value String -- value
     -- Literals
-    | String String
-    | Char Char
-    | Integer Integer
+    | String String -- "Hello"
+    | Char Char -- 'a'
+    | Integer Integer -- 55
+    -- Layout
+    | Newline
+    | Indent
+    | Dedent
     deriving Show
 
 data TokenPosition = TokenPosition
@@ -49,4 +58,5 @@ matchKeyword text = case text of
     "if" -> If
     "then" -> Then
     "else" -> Else
+    "is" -> Is
     _ -> Value text
