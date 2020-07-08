@@ -11,6 +11,8 @@ data TokenType
     | Then -- then
     | Else -- else
     | Is -- is
+    | Let -- let
+    | In -- in
     -- Characters
     | LeftParen -- (
     | RightParen -- )
@@ -35,13 +37,13 @@ data TokenType
     | ReversePartialPipe -- <!
     | Or -- ||
     | And -- &&
-    -- Symbols
-    | DataType String -- DataType
-    | Value String -- value
     -- Literals
     | String String -- "Hello"
     | Char Char -- 'a'
     | Integer Integer -- 55
+    -- Symbols
+    | DataType String -- DataType
+    | Value String -- value
     -- Layout
     | Newline
     | Indent
@@ -59,4 +61,6 @@ matchKeyword text = case text of
     "then" -> Then
     "else" -> Else
     "is" -> Is
+    "let" -> Let
+    "in" -> In
     _ -> Value text

@@ -4,5 +4,6 @@ import Lexer
 
 main :: IO ()
 main = do
-    let tokens = Lexer.lex "value = if test == 2 then 4 else 6"
+    contents <- getContents
+    let tokens = Lexer.lex contents
     mapM_ print tokens
