@@ -21,55 +21,57 @@ lex input =
 lexerStep :: State -> String -> State
 lexerStep finalState "" = finalState
 lexerStep state input@(char:rest) =
-    let result =
+    let pc = parseChar state rest
+        pdc = parseDoubleChar state rest
+        result =
             if char == '(' then
-                parseChar state rest LeftParen
+                pc LeftParen
             else if char == ')' then
                 if peek rest == "!" then
-                    parseDoubleChar state rest PartialRightParen
+                    pdc PartialRightParen
                 else
-                    parseChar state rest RightParen
+                    pc RightParen
             else if char == '[' then
-                parseChar state rest LeftBracket
+                pc LeftBracket
             else if char == ']' then
-                parseChar state rest RightBracket
+                pc RightBracket
             else if char == '<' then
                 if peek rest == "|" then
-                    parseDoubleChar state rest ReversePipe
+                    pdc ReversePipe
                 else if peek rest == "!" then
-                    parseDoubleChar state rest ReversePartialPipe
+                    pdc ReversePartialPipe
                 else
-                    parseChar state rest LeftAngle
+                    pc LeftAngle
             else if char == '>' then
-                parseChar state rest RightAngle
+                pc RightAngle
             else if char == '=' then
                 if peek rest == "=" then
-                    parseDoubleChar state rest Equality
+                    pdc Equality
                 else
-                    parseChar state rest Equals
+                    pc Equals
             else if char == '|' then
                 if peek rest == ">" then
-                    parseDoubleChar state rest Pipe
+                    pdc Pipe
                 else if peek rest == "|" then
-                    parseDoubleChar state rest Or
+                    pdc Or
                 else
-                    parseChar state rest Union
+                    pc Union
             else if char == ',' then
-                parseChar state rest Comma
+                pc Comma
             else if char == '.' then
-                parseChar state rest Dot
+                pc Dot
             else if char == '/' && peek rest == "=" then
-                parseDoubleChar state rest Inequality
+                pdc Inequality
             else if char == '+' then
-                parseChar state rest Plus
+                pc Plus
             else if char == '-' then
-                parseChar state rest Minus
+                pc Minus
             else if char == '%' then
-                parseChar state rest Modulo
+                pc Modulo
             else if char == '!' && peek rest == ">" then
-                parseDoubleChar state rest PartialPipe
+                pdc PartialPipe
             else if char == '&' && peek rest == "&" then
-                parseDoubleChar state rest And
+                pdc And
             else if char == '"' then
                 parseString state rest
             else if char == '\'' then
@@ -81,7 +83,7 @@ lexerStep state input@(char:rest) =
             else if isLower char then
                 parseValue state input
             else if char == '\n' then
-                parseChar state rest Newline
+                pc Newline
             else
                 (state, "")
         (newState, newInput) = removeWhitespace result
