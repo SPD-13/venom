@@ -131,7 +131,15 @@ parseString state input =
         )
 
 parseCharLiteral state input =
-    (state, input)
+    if peek input == "" || peek (tail input) /= "'" then
+        (state, "")
+    else
+        let (char:rest) = input
+            token = Token (Char char) (getPosition state)
+        in
+            ( state { currentColumn = currentColumn state + 3, tokens = token : tokens state }
+            , tail rest
+            )
 
 parseInteger state input =
     let (integer, rest) = span isDigit input
