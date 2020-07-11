@@ -48,7 +48,7 @@ data TokenType
     | Newline
     | Indent
     | Dedent
-    deriving Show
+    deriving (Show, Eq)
 
 data TokenPosition = TokenPosition
     { line :: Integer
