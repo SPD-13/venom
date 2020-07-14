@@ -1,5 +1,7 @@
 module Token where
 
+import Operator
+
 data Token = Token
     { tokenType :: TokenType
     , pos :: TokenPosition
@@ -26,17 +28,7 @@ data TokenType
     | Comma -- ,
     | Dot -- .
     -- Operators
-    | Equality -- ==
-    | Inequality -- /=
-    | Plus -- +
-    | Minus -- -
-    | Modulo -- %
-    | Pipe -- |>
-    | ReversePipe -- <|
-    | PartialPipe -- !>
-    | ReversePartialPipe -- <!
-    | Or -- ||
-    | And -- &&
+    | Operator Operator
     -- Literals
     | String String -- "Hello"
     | Char Char -- 'a'

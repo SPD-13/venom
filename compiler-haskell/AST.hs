@@ -1,11 +1,9 @@
 module AST where
 
+import Operator
+
 data AST
     = Binary AST Operator AST
-    | Literal
-
-data Operator
-    = Equality
-    | Inequality
-    | Plus
-    | Minus
+    | Integer Integer
+    | None
+    deriving Show

@@ -2,6 +2,7 @@ module Parser where
 
 import Token
 import AST
+import Operator
 
 parse :: [Token] -> AST
 parse tokens =
@@ -9,37 +10,34 @@ parse tokens =
     in ast
 
 expression :: [Token] -> (AST, [Token])
-expression tokens =
-    equality tokens
+expression = equality
+
+makeBinaryParser :: ([Token] -> (AST, [Token])) -> [Operator] -> ([Token] -> (AST, [Token]))
+makeBinaryParser operandParser operators =
+    let
+        recurse result@(left, rest) =
+            case map tokenType $ peek rest of
+                [Operator op] ->
+                    if op `elem` operators then
+                        let (right, newRest) = operandParser $ tail rest
+                        in recurse (Binary left op right, newRest)
+                    else
+                        result
+                _ -> result
+    in recurse . operandParser
 
 equality :: [Token] -> (AST, [Token])
-equality tokens =
-    let result@(left, rest) = addition tokens
-        nextToken = map tokenType $ peek rest
-    in
-        if nextToken `elem` [[Token.Equality], [Token.Inequality]] then
-            let operator = if nextToken == [Token.Equality] then AST.Equality else AST.Inequality
-                (right, newRest) = equality $ tail rest
-            in (Binary left operator right, newRest)
-        else
-            result
+equality = makeBinaryParser addition [Equality, Inequality]
 
 addition :: [Token] -> (AST, [Token])
-addition tokens =
-    let result@(left, rest) = primary tokens
-        nextToken = map tokenType $ peek rest
-    in
-        if nextToken `elem` [[Token.Plus], [Token.Minus]] then
-            let operator = if nextToken == [Token.Plus] then AST.Plus else AST.Minus
-                (right, newRest) = addition $ tail rest
-            in (Binary left operator right, newRest)
-        else
-            result
+addition = makeBinaryParser primary [Plus, Minus]
 
 primary :: [Token] -> (AST, [Token])
-primary tokens =
-    (Literal, tokens)
+primary [] = (None, [])
+primary (head:rest) =
+    case tokenType head of
+        (Token.Integer integer) -> (AST.Integer integer, rest)
+        _ -> (None, [])
 
 peek :: [Token] -> [Token]
-peek [] = []
-peek (head:_) = [head]
+peek = take 1

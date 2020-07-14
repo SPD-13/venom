@@ -11,3 +11,4 @@ main = do
     mapM_ print tokens
     let ast = Parser.parse tokens
     putStrLn "\n--- Parser output ---\n"
+    print ast

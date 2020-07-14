@@ -4,6 +4,7 @@ import Data.List (genericLength)
 import Data.Char
 
 import Token
+import Operator
 
 data State = State
     { currentLine :: Integer
@@ -24,74 +25,52 @@ lexerStep state input@(char:rest) =
     let pc = parseChar state rest
         pdc = parseDoubleChar state rest
         result =
-            if char == '(' then
-                pc LeftParen
-            else if char == ')' then
-                if peek rest == "!" then
-                    pdc PartialRightParen
-                else
-                    pc RightParen
-            else if char == '[' then
-                pc LeftBracket
-            else if char == ']' then
-                pc RightBracket
-            else if char == '<' then
-                if peek rest == "|" then
-                    pdc ReversePipe
-                else if peek rest == "!" then
-                    pdc ReversePartialPipe
-                else
-                    pc LeftAngle
-            else if char == '>' then
-                pc RightAngle
-            else if char == '=' then
-                if peek rest == "=" then
-                    pdc Equality
-                else
-                    pc Equals
-            else if char == '|' then
-                if peek rest == ">" then
-                    pdc Pipe
-                else if peek rest == "|" then
-                    pdc Or
-                else
-                    pc Union
-            else if char == ',' then
-                pc Comma
-            else if char == '.' then
-                pc Dot
-            else if char == '/' && peek rest == "=" then
-                pdc Inequality
-            else if char == '+' then
-                pc Plus
-            else if char == '-' then
-                pc Minus
-            else if char == '%' then
-                pc Modulo
-            else if char == '!' && peek rest == ">" then
-                pdc PartialPipe
-            else if char == '&' && peek rest == "&" then
-                pdc And
-            else if char == '"' then
-                parseString state rest
-            else if char == '\'' then
-                parseCharLiteral state rest
-            else if isDigit char then
-                parseInteger state input
-            else if isUpper char then
-                parseDataType state input
-            else if isLower char then
-                parseValue state input
-            else if char == '\n' then
-                pc Newline
-            else
-                (state, "")
+            case char of
+                '(' -> pc LeftParen
+                ')' -> if peek rest == "!" then pdc PartialRightParen else pc RightParen
+                '[' -> pc LeftBracket
+                ']' -> pc RightBracket
+                '<' ->
+                    if peek rest == "|" then
+                        pdc $ Operator ReversePipe
+                    else if peek rest == "!" then
+                        pdc $ Operator ReversePartialPipe
+                    else
+                        pc LeftAngle
+                '>' -> pc RightAngle
+                '=' -> if peek rest == "=" then pdc $ Operator Equality else pc Equals
+                '|' ->
+                    if peek rest == ">" then
+                        pdc $ Operator Pipe
+                    else if peek rest == "|" then
+                        pdc $ Operator Or
+                    else
+                        pc Union
+                ',' -> pc Comma
+                '.' -> pc Dot
+                '/' -> if peek rest == "=" then pdc $ Operator Inequality else (state, "")
+                '+' -> pc $ Operator Plus
+                '-' -> pc $ Operator Minus
+                '%' -> pc $ Operator Modulo
+                '!' -> if peek rest == ">" then pdc $ Operator PartialPipe else (state, "")
+                '&' -> if peek rest == "&" then pdc $ Operator And else (state, "")
+                '"' -> parseString state rest
+                '\'' -> parseCharLiteral state rest
+                '\n' -> pc Newline
+                _ ->
+                     if isDigit char then
+                        parseInteger state input
+                    else if isUpper char then
+                        parseDataType state input
+                    else if isLower char then
+                        parseValue state input
+                    else
+                        (state, "")
         (newState, newInput) = removeWhitespace result
     in lexerStep newState newInput
 
 peek :: String -> String
-peek "" = ""
-peek (char:_) = [char]
+peek = take 1
 
 parseChar state input tokenType =
     let token = Token tokenType (getPosition state)
