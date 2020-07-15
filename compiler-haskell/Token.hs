@@ -36,10 +36,6 @@ data TokenType
     -- Symbols
     | DataType String -- DataType
     | Value String -- value
-    -- Layout
-    | Newline
-    | Indent
-    | Dedent
     deriving (Show, Eq)
 
 data TokenPosition = TokenPosition

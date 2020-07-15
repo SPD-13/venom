@@ -2,6 +2,7 @@ module Main where
 
 import Lexer
 import Parser
+import Interpreter
 
 main :: IO ()
 main = do
@@ -12,3 +13,6 @@ main = do
     let ast = Parser.parse tokens
     putStrLn "\n--- Parser output ---\n"
     print ast
+    let result = Interpreter.interpret ast
+    putStrLn "\n--- Interpreter output ---\n"
+    print result

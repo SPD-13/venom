@@ -56,7 +56,6 @@ lexerStep state input@(char:rest) =
                 '&' -> if peek rest == "&" then pdc $ Operator And else (state, "")
                 '"' -> parseString state rest
                 '\'' -> parseCharLiteral state rest
-                '\n' -> pc Newline
                 _ ->
                      if isDigit char then
                         parseInteger state input
@@ -131,7 +130,7 @@ parseInteger state input =
         )
 
 removeWhitespace (state, input) =
-    let (whitespace, rest) = span (== ' ') input
+    let (whitespace, rest) = span (`elem` [' ', '\t', '\n']) input
     in
         ( state { currentColumn = currentColumn state + genericLength whitespace }
         , rest

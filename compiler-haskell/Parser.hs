@@ -10,9 +10,12 @@ parse tokens =
     in ast
 
 expression :: [Token] -> (AST, [Token])
-expression = equality
+expression tokens = mapFirst Expression $ equality tokens
 
-makeBinaryParser :: ([Token] -> (AST, [Token])) -> [Operator] -> ([Token] -> (AST, [Token]))
+mapFirst :: (a -> b) -> (a, c) -> (b, c)
+mapFirst f (a, b) = (f a, b)
+
+makeBinaryParser :: ([Token] -> (Expression, [Token])) -> [Operator] -> ([Token] -> (Expression, [Token]))
 makeBinaryParser operandParser operators =
     let
         recurse result@(left, rest) =
@@ -26,13 +29,13 @@ makeBinaryParser operandParser operators =
                 _ -> result
     in recurse . operandParser
 
-equality :: [Token] -> (AST, [Token])
+equality :: [Token] -> (Expression, [Token])
 equality = makeBinaryParser addition [Equality, Inequality]
 
-addition :: [Token] -> (AST, [Token])
+addition :: [Token] -> (Expression, [Token])
 addition = makeBinaryParser primary [Plus, Minus]
 
-primary :: [Token] -> (AST, [Token])
+primary :: [Token] -> (Expression, [Token])
 primary [] = (None, [])
 primary (head:rest) =
     case tokenType head of
