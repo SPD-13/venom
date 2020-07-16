@@ -13,5 +13,6 @@ data Binding
 data Expression
     = Binary Expression Operator Expression
     | Integer Integer
+    | Value String
     | None
     deriving Show

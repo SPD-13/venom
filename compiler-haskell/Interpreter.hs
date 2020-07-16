@@ -1,26 +1,41 @@
 module Interpreter where
 
+import Data.List (foldl', intercalate)
+import qualified Data.Map as M
+
 import Operator
 import AST
 
-interpret :: AST -> Integer
+type Env = M.Map String Integer
+
+interpret :: AST -> String
 interpret (Bindings bindings) =
-    last $ map interpretBinding bindings
+    printEnv $ foldl' interpretBinding M.empty bindings
 
-interpretBinding :: Binding -> Integer
-interpretBinding (Binding _ expr) = interpretExpression expr
+interpretBinding :: Env -> Binding -> Env
+interpretBinding env (Binding identifier expr) =
+    let value = interpretExpression expr env
+    in M.insert identifier value env
 
-interpretExpression :: Expression -> Integer
-interpretExpression expression =
+interpretExpression :: Expression -> Env -> Integer
+interpretExpression expression env =
     case expression of
         Binary left op right ->
             let
-                leftValue = interpretExpression left
-                rightValue = interpretExpression right
+                leftValue = interpretExpression left env
+                rightValue = interpretExpression right env
             in
                 case op of
                     Plus -> leftValue + rightValue
                     Minus -> leftValue - rightValue
                     _ -> 0
         Integer integer -> integer
+        Value identifier ->
+            case M.lookup identifier env of
+                Just value -> value
+                Nothing -> 0
         None -> 0
+
+printEnv :: Env -> String
+printEnv env =
+    intercalate "\n" $ map (\(k, v) -> k ++ " = " ++ show v) $ M.toList env

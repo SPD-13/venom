@@ -10,4 +10,6 @@ equality > addition ((EQUALITY | INEQUALITY) addition)*
 
 addition > primary ((PLUS | MINUS) primary)*
 
-primary > INTEGER
+primary
+    > INTEGER
+    | VALUE

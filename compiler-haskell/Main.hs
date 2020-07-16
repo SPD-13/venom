@@ -15,4 +15,5 @@ main = do
     print ast
     let result = Interpreter.interpret ast
     putStrLn "\n--- Interpreter output ---\n"
-    print result
+    putStrLn result
+    putStrLn ""
