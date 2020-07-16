@@ -4,8 +4,11 @@ import Operator
 import AST
 
 interpret :: AST -> Integer
-interpret (Expression expression) =
-    interpretExpression expression
+interpret (Bindings bindings) =
+    last $ map interpretBinding bindings
+
+interpretBinding :: Binding -> Integer
+interpretBinding (Binding _ expr) = interpretExpression expr
 
 interpretExpression :: Expression -> Integer
 interpretExpression expression =
@@ -21,4 +24,3 @@ interpretExpression expression =
                     _ -> 0
         Integer integer -> integer
         None -> 0
-

@@ -6,11 +6,24 @@ import Operator
 
 parse :: [Token] -> AST
 parse tokens =
-    let (ast, _) = expression tokens
+    let (ast, _) = mapFirst Bindings $ bindings tokens
     in ast
 
-expression :: [Token] -> (AST, [Token])
-expression tokens = mapFirst Expression $ equality tokens
+bindings :: [Token] -> ([Binding], [Token])
+bindings [] = ([], [])
+bindings tokens@(head:rest) =
+    case tokenType head of
+        (Value identifier) ->
+            if map tokenType (peek rest) == [Equals] then
+                let (expr, newTokens) = expression $ tail rest
+                    binding = Binding identifier expr
+                in mapFirst (binding:) $ bindings newTokens
+            else
+                ([], tokens)
+        _ -> ([], tokens)
+
+expression :: [Token] -> (Expression, [Token])
+expression tokens = equality tokens
 
 mapFirst :: (a -> b) -> (a, c) -> (b, c)
 mapFirst f (a, b) = (f a, b)

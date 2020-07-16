@@ -3,7 +3,11 @@ module AST where
 import Operator
 
 data AST
-    = Expression Expression
+    = Bindings [Binding]
+    deriving Show
+
+data Binding
+    = Binding String Expression
     deriving Show
 
 data Expression
