@@ -9,14 +9,12 @@ import Operator
 data State = State
     { currentLine :: Integer
     , currentColumn :: Integer
-    , referenceIndent :: Maybe(Integer)
-    , indentLevel :: Integer
     , tokens :: [Token]
     }
 
 lex :: String -> [Token]
 lex input =
-    let initialState = State 1 1 Nothing 0 []
+    let initialState = State 1 1 []
     in reverse . tokens $ lexerStep initialState input
 
 lexerStep :: State -> String -> State
@@ -130,11 +128,17 @@ parseInteger state input =
         )
 
 removeWhitespace (state, input) =
-    let (whitespace, rest) = span (`elem` [' ', '\t', '\n']) input
+    let (whitespace, rest) = span (`elem` [' ', '\t']) input
     in
-        ( state { currentColumn = currentColumn state + genericLength whitespace }
-        , rest
-        )
+        if peek rest == "\n" then
+            removeWhitespace
+                ( state { currentLine = currentLine state + 1, currentColumn = 1 }
+                , tail rest
+                )
+        else
+            ( state { currentColumn = currentColumn state + genericLength whitespace }
+            , rest
+            )
 
 getPosition :: State -> TokenPosition
 getPosition state = TokenPosition (currentLine state) (currentColumn state)
