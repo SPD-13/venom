@@ -14,7 +14,7 @@ bindings [] = ([], [])
 bindings tokens@(head:rest) =
     case tokenType head of
         (Token.Value identifier) ->
-            if map tokenType (peek rest) == [Equals] then
+            if peek rest == [Equals] then
                 let (expr, newTokens) = expression $ tail rest
                     binding = Binding identifier expr
                 in mapFirst (binding:) $ bindings newTokens
@@ -32,7 +32,7 @@ makeBinaryParser :: ([Token] -> (Expression, [Token])) -> [Operator] -> ([Token]
 makeBinaryParser operandParser operators =
     let
         recurse result@(left, rest) =
-            case map tokenType $ peek rest of
+            case peek rest of
                 [Operator op] ->
                     if op `elem` operators then
                         let (right, newRest) = operandParser $ tail rest
@@ -52,9 +52,37 @@ primary :: [Token] -> (Expression, [Token])
 primary [] = (None, [])
 primary (head:rest) =
     case tokenType head of
+        Token.Let ->
+            let (local, newRest) = bindings rest
+            in
+                if peek newRest == [In] then
+                    let (expr, finalRest) = expression $ tail newRest
+                    in (AST.Let local expr, finalRest)
+                else
+                    (None, [])
+        Token.If ->
+            let (condition, newRest) = expression rest
+            in
+                if peek newRest == [Then] then
+                    let (trueValue, trueRest) = expression $ tail newRest
+                    in
+                        if peek trueRest == [Else] then
+                            let (falseValue, falseRest) = expression $ tail trueRest
+                            in (AST.If condition trueValue falseValue, falseRest)
+                        else
+                            (None, [])
+                else
+                    (None, [])
+        LeftParen ->
+            let (expr, newRest) = expression rest
+            in
+                if peek newRest == [RightParen] then
+                    (expr, tail newRest)
+                else
+                    (None, [])
         (Token.Integer integer) -> (AST.Integer integer, rest)
         (Token.Value identifier) -> (AST.Value identifier, rest)
         _ -> (None, [])
 
-peek :: [Token] -> [Token]
-peek = take 1
+peek :: [Token] -> [TokenType]
+peek = map tokenType . take 1

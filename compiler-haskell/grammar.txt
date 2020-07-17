@@ -2,14 +2,15 @@ program > binding*
 
 binding > VALUE EQUALS expression
 
-expression
-    > IF expression THEN expression ELSE expression
-    | equality
+expression > equality
 
 equality > addition ((EQUALITY | INEQUALITY) addition)*
 
 addition > primary ((PLUS | MINUS) primary)*
 
 primary
-    > INTEGER
+    > LET binding* IN expression
+    | IF expression THEN expression ELSE expression
+    | LEFTPAREN expression RIGHTPAREN
+    | INTEGER
     | VALUE

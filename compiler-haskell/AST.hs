@@ -11,7 +11,9 @@ data Binding
     deriving Show
 
 data Expression
-    = Binary Expression Operator Expression
+    = Let [Binding] Expression
+    | If Expression Expression Expression
+    | Binary Expression Operator Expression
     | Integer Integer
     | Value String
     | None
