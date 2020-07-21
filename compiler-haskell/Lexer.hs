@@ -49,6 +49,7 @@ lexerStep state input@(char:rest) =
                 '/' -> if peek rest == "=" then pdc $ Operator Inequality else (state, "")
                 '+' -> pc $ Operator Plus
                 '-' -> pc $ Operator Minus
+                '*' -> pc $ Operator Times
                 '%' -> pc $ Operator Modulo
                 '!' -> if peek rest == ">" then pdc $ Operator PartialPipe else (state, "")
                 '&' -> if peek rest == "&" then pdc $ Operator And else (state, "")

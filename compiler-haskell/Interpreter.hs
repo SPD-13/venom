@@ -20,6 +20,8 @@ interpretBinding env (Binding identifier expr) =
 interpretExpression :: Expression -> Env -> Integer
 interpretExpression expression env =
     case expression of
+        Let bindings expr ->
+            0
         Binary left op right ->
             let
                 leftValue = interpretExpression left env
@@ -35,7 +37,7 @@ interpretExpression expression env =
             case M.lookup identifier env of
                 Just value -> value
                 Nothing -> 0
-        None -> 0
+        _ -> 0
 
 printEnv :: Env -> String
 printEnv env =

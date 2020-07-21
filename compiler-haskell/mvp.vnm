@@ -5,5 +5,5 @@ c =
 d =
     let a = 10
         b = 14
-    in a - b
+    in b - a - c
 e = (c + d) * 2
