@@ -28,6 +28,7 @@ interpretExpression expression env =
                 case op of
                     Plus -> leftValue + rightValue
                     Minus -> leftValue - rightValue
+                    Times -> leftValue * rightValue
                     _ -> 0
         Integer integer -> integer
         Value identifier ->

@@ -6,7 +6,9 @@ expression > equality
 
 equality > addition ((EQUALITY | INEQUALITY) addition)*
 
-addition > primary ((PLUS | MINUS) primary)*
+addition > multiplication ((PLUS | MINUS) multiplication)*
+
+multiplication > primary (TIMES primary)*
 
 primary
     > LET binding* IN expression

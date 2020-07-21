@@ -1,6 +1,9 @@
-a = 6 + 10
-    b = 17 + 7
-
-c = a - b
-    d = 4
-e = 5
+c =
+    let a = 4
+        b = 6
+    in a + b
+d =
+    let a = 10
+        b = 14
+    in a - b
+e = (c + d) * 2

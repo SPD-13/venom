@@ -46,7 +46,10 @@ equality :: [Token] -> (Expression, [Token])
 equality = makeBinaryParser addition [Equality, Inequality]
 
 addition :: [Token] -> (Expression, [Token])
-addition = makeBinaryParser primary [Plus, Minus]
+addition = makeBinaryParser multiplication [Plus, Minus]
+
+multiplication :: [Token] -> (Expression, [Token])
+multiplication = makeBinaryParser primary [Times]
 
 primary :: [Token] -> (Expression, [Token])
 primary [] = (None, [])

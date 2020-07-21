@@ -5,6 +5,7 @@ data Operator
     | Inequality -- /=
     | Plus -- +
     | Minus -- -
+    | Times -- *
     | Modulo -- %
     | Pipe -- |>
     | ReversePipe -- <|
