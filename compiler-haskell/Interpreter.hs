@@ -19,25 +19,34 @@ interpretBinding env (Binding identifier expr) =
     let value = interpretExpression expr env
     in E.set identifier value env
 
-interpretExpression :: Expression -> E.Env -> Integer
+interpretExpression :: Expression -> E.Env -> Concrete
 interpretExpression expression env =
     case expression of
         Let bindings expr ->
             let localEnv = interpretBindings env bindings
             in interpretExpression expr localEnv
+        If condition trueValue falseValue ->
+            if interpretExpression condition env == Bool True then
+                interpretExpression trueValue env
+            else
+                interpretExpression falseValue env
         Binary left op right ->
             let
                 leftValue = interpretExpression left env
                 rightValue = interpretExpression right env
             in
                 case op of
-                    Plus -> leftValue + rightValue
-                    Minus -> leftValue - rightValue
-                    Times -> leftValue * rightValue
-                    _ -> 0
-        Integer integer -> integer
-        Value identifier ->
+                    Plus -> case (leftValue, rightValue) of
+                        (Integer l, Integer r) -> Integer $ l + r
+                    Minus -> case (leftValue, rightValue) of
+                        (Integer l, Integer r) -> Integer $ l - r
+                    Times -> case (leftValue, rightValue) of
+                        (Integer l, Integer r) -> Integer $ l * r
+                    Equality -> Bool $ leftValue == rightValue
+                    Inequality -> Bool $ leftValue /= rightValue
+                    _ -> Integer 0
+        Literal literal -> literal
+        Identifier identifier ->
             case E.get identifier env of
                 Just value -> value
-                Nothing -> 0
-        _ -> 0
+                Nothing -> Integer 0

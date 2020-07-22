@@ -3,7 +3,9 @@ module Environment (Env, new, set, get) where
 import Data.List (intercalate)
 import qualified Data.Map as M
 
-newtype Env = Env (M.Map String Integer)
+import AST
+
+newtype Env = Env (M.Map String Concrete)
 
 instance Show Env where
     show (Env env) = intercalate "\n" $ map (\(k, v) -> k ++ " = " ++ show v) $ M.toList env
@@ -11,8 +13,8 @@ instance Show Env where
 new :: Env
 new = Env M.empty
 
-set :: String -> Integer -> Env -> Env
+set :: String -> Concrete -> Env -> Env
 set identifier value (Env env) = Env $ M.insert identifier value env
 
-get :: String -> Env -> Maybe Integer
+get :: String -> Env -> Maybe Concrete
 get identifier (Env env) = M.lookup identifier env

@@ -83,8 +83,8 @@ primary (head:rest) =
                     (expr, tail newRest)
                 else
                     (None, [])
-        (Token.Integer integer) -> (AST.Integer integer, rest)
-        (Token.Value identifier) -> (AST.Value identifier, rest)
+        (Token.Integer integer) -> (Literal $ AST.Integer integer, rest)
+        (Token.Value identifier) -> (Identifier identifier, rest)
         _ -> (None, [])
 
 peek :: [Token] -> [TokenType]

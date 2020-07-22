@@ -14,7 +14,12 @@ data Expression
     = Let [Binding] Expression
     | If Expression Expression Expression
     | Binary Expression Operator Expression
-    | Integer Integer
-    | Value String
+    | Literal Concrete
+    | Identifier String
     | None
     deriving Show
+
+data Concrete
+    = Integer Integer
+    | Bool Bool
+    deriving (Eq, Show)
