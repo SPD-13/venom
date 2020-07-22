@@ -26,7 +26,7 @@ interpretExpression expression env =
             let localEnv = interpretBindings env bindings
             in interpretExpression expr localEnv
         If condition trueValue falseValue ->
-            if interpretExpression condition env == Bool True then
+            if isTrue $ interpretExpression condition env then
                 interpretExpression trueValue env
             else
                 interpretExpression falseValue env
@@ -44,9 +44,13 @@ interpretExpression expression env =
                         (Integer l, Integer r) -> Integer $ l * r
                     Equality -> Bool $ leftValue == rightValue
                     Inequality -> Bool $ leftValue /= rightValue
+                    And -> Bool $ isTrue leftValue && isTrue rightValue
+                    Or -> Bool $ isTrue leftValue || isTrue rightValue
                     _ -> Integer 0
         Literal literal -> literal
         Identifier identifier ->
             case E.get identifier env of
                 Just value -> value
                 Nothing -> Integer 0
+
+isTrue = (== Bool True)

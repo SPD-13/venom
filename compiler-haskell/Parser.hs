@@ -23,7 +23,7 @@ bindings tokens@(head:rest) =
         _ -> ([], tokens)
 
 expression :: [Token] -> (Expression, [Token])
-expression tokens = equality tokens
+expression tokens = logicOr tokens
 
 mapFirst :: (a -> b) -> (a, c) -> (b, c)
 mapFirst f (a, b) = (f a, b)
@@ -42,13 +42,10 @@ makeBinaryParser operandParser operators =
                 _ -> result
     in recurse . operandParser
 
-equality :: [Token] -> (Expression, [Token])
+logicOr = makeBinaryParser logicAnd [Or]
+logicAnd = makeBinaryParser equality [And]
 equality = makeBinaryParser addition [Equality, Inequality]
-
-addition :: [Token] -> (Expression, [Token])
 addition = makeBinaryParser multiplication [Plus, Minus]
-
-multiplication :: [Token] -> (Expression, [Token])
 multiplication = makeBinaryParser primary [Times]
 
 primary :: [Token] -> (Expression, [Token])

@@ -2,7 +2,11 @@ program > binding*
 
 binding > VALUE EQUALS expression
 
-expression > equality
+expression > logic_or
+
+logic_or > logic_and (OR logic_and)*
+
+logic_and > equality (AND equality)*
 
 equality > addition ((EQUALITY | INEQUALITY) addition)*
 

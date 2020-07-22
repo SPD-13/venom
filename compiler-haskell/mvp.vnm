@@ -1,9 +1,9 @@
 c = let a = 4
         b = 6
-    in if a /= b then 8 else 12
+    in if a /= b && 6 == 1 + 5 then 8 else 12
 d = let a = 10
         b = 14
     in b - a - c
 e = (c + d) * 5
 f = e == 20
-g = if f then 1 else 0
+g = if 1 == 2 || f then 1 else 0
