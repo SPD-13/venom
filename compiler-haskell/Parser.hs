@@ -46,7 +46,35 @@ logicOr = makeBinaryParser logicAnd [Or]
 logicAnd = makeBinaryParser equality [And]
 equality = makeBinaryParser addition [Equality, Inequality]
 addition = makeBinaryParser multiplication [Plus, Minus]
-multiplication = makeBinaryParser primary [Times]
+multiplication = makeBinaryParser call [Times]
+
+call :: [Token] -> (Expression, [Token])
+call = recurseCall . primary
+
+recurseCall :: (Expression, [Token]) -> (Expression, [Token])
+recurseCall result@(callee, tokens) =
+    case peek tokens of
+        [LeftParen] ->
+            let (args, rest) = arguments $ tail tokens
+                currentCall = Call callee args
+            in recurseCall (currentCall, rest)
+        _ -> result
+
+arguments :: [Token] -> ([Expression], [Token])
+arguments tokens =
+    case peek tokens of
+        [RightParen] -> ([], tail tokens)
+        _ -> recurseArguments tokens
+
+recurseArguments :: [Token] -> ([Expression], [Token])
+recurseArguments tokens =
+    let (expr, rest) = expression tokens
+    in case peek rest of
+        [Comma] ->
+            let (args, newRest) = recurseArguments $ tail rest
+            in (expr : args, newRest)
+        [RightParen] -> ([expr], tail rest)
+        _ -> ([None], [])
 
 primary :: [Token] -> (Expression, [Token])
 primary [] = (None, [])

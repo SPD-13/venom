@@ -14,6 +14,7 @@ data Expression
     = Let [Binding] Expression
     | If Expression Expression Expression
     | Binary Expression Operator Expression
+    | Call Expression [Expression]
     | Literal Concrete
     | Identifier String
     | None

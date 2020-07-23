@@ -12,7 +12,11 @@ equality > addition ((EQUALITY | INEQUALITY) addition)*
 
 addition > multiplication ((PLUS | MINUS) multiplication)*
 
-multiplication > primary (TIMES primary)*
+multiplication > call (TIMES call)*
+
+call > primary (LEFT_PAREN arguments? RIGHT_PAREN)*
+
+arguments > expression (COMMA expression)*
 
 primary
     > LET binding* IN expression
