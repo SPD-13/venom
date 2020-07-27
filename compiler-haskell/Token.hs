@@ -35,7 +35,7 @@ data TokenType
     | Integer Integer -- 55
     -- Symbols
     | DataType String -- DataType
-    | Value String -- value
+    | Identifier String -- value
     deriving (Show, Eq)
 
 data TokenPosition = TokenPosition
@@ -51,4 +51,4 @@ matchKeyword text = case text of
     "is" -> Is
     "let" -> Let
     "in" -> In
-    _ -> Value text
+    _ -> Identifier text

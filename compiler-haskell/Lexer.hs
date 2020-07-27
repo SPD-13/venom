@@ -61,7 +61,7 @@ lexerStep state input@(char:rest) =
                     else if isUpper char then
                         parseDataType state input
                     else if isLower char then
-                        parseValue state input
+                        parseIdentifier state input
                     else
                         (state, "")
         (newState, newInput) = removeWhitespace result
@@ -84,7 +84,7 @@ parseDoubleChar state input tokenType =
         , tail input
         )
 
-parseValue state input =
+parseIdentifier state input =
     let (word, rest) = span isAlphaNum input
         tokenType = matchKeyword word
         token = Token tokenType (getPosition state)

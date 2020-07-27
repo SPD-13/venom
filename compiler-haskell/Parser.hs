@@ -13,7 +13,7 @@ bindings :: [Token] -> ([Binding], [Token])
 bindings [] = ([], [])
 bindings tokens@(head:rest) =
     case tokenType head of
-        (Token.Value identifier) ->
+        (Token.Identifier identifier) ->
             if peek rest == [Equals] then
                 let (expr, newTokens) = expression $ tail rest
                     binding = Binding identifier expr
@@ -109,7 +109,7 @@ primary (head:rest) =
                 else
                     (None, [])
         (Token.Integer integer) -> (Literal $ AST.Integer integer, rest)
-        (Token.Value identifier) -> (Identifier identifier, rest)
+        (Token.Identifier identifier) -> (AST.Identifier identifier, rest)
         _ -> (None, [])
 
 peek :: [Token] -> [TokenType]
