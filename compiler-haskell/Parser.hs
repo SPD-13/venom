@@ -14,13 +14,43 @@ bindings [] = ([], [])
 bindings tokens@(head:rest) =
     case tokenType head of
         (Token.Identifier identifier) ->
-            if peek rest == [Equals] then
-                let (expr, newTokens) = expression $ tail rest
-                    binding = Binding identifier expr
-                in mapFirst (binding:) $ bindings newTokens
-            else
-                ([], tokens)
+            case peek rest of
+                [LeftParen] -> function identifier $ tail rest
+                [Equals] -> constant identifier $ tail rest
+                _ -> ([], [])
         _ -> ([], tokens)
+
+function identifier tokens =
+    let (params, rest) = parameters tokens
+    in case peek rest of
+        [Equals] ->
+            let (expr, newTokens) = expression $ tail rest
+                binding = Function identifier params expr
+            in mapFirst (binding:) $ bindings newTokens
+        _ -> ([], [])
+
+parameters :: [Token] -> ([String], [Token])
+parameters tokens =
+    case peek tokens of
+        [RightParen] -> ([], tail tokens)
+        _ -> recurseParameters tokens
+
+recurseParameters tokens =
+    let (head, rest) = consume tokens
+    in case head of
+        [Token.Identifier identifier] ->
+            case peek rest of
+                [Comma] ->
+                    let (params, newRest) = recurseParameters $ tail rest
+                    in (identifier : params, newRest)
+                [RightParen] -> ([identifier], tail rest)
+                _ -> ([], [])
+        _ -> ([], [])
+
+constant identifier tokens =
+    let (expr, newTokens) = expression tokens
+        binding = Constant identifier expr
+    in mapFirst (binding:) $ bindings newTokens
 
 expression :: [Token] -> (Expression, [Token])
 expression tokens = logicOr tokens
@@ -74,7 +104,7 @@ recurseArguments tokens =
             let (args, newRest) = recurseArguments $ tail rest
             in (expr : args, newRest)
         [RightParen] -> ([expr], tail rest)
-        _ -> ([None], [])
+        _ -> ([], [])
 
 primary :: [Token] -> (Expression, [Token])
 primary [] = (None, [])
@@ -114,3 +144,7 @@ primary (head:rest) =
 
 peek :: [Token] -> [TokenType]
 peek = map tokenType . take 1
+
+consume :: [Token] -> ([TokenType], [Token])
+consume [] = ([], [])
+consume (head:rest) = ([tokenType head], rest)

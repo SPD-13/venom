@@ -7,7 +7,8 @@ data AST
     deriving Show
 
 data Binding
-    = Binding String Expression
+    = Function String [String] Expression
+    | Constant String Expression
     deriving Show
 
 data Expression
