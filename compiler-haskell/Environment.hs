@@ -13,8 +13,8 @@ instance Show Env where
 new :: Env
 new = Env M.empty
 
-set :: String -> Concrete -> Env -> Env
-set identifier value (Env env) = Env $ M.insert identifier value env
+set :: Env -> (String, Concrete) -> Env
+set (Env env) (identifier, value) = Env $ M.insert identifier value env
 
 get :: String -> Env -> Maybe Concrete
 get identifier (Env env) = M.lookup identifier env

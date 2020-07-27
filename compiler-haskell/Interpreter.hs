@@ -15,25 +15,30 @@ interpretBindings env bindings =
     foldl' interpretBinding env bindings
 
 interpretBinding :: E.Env -> Binding -> E.Env
-interpretBinding env (Binding identifier expr) =
-    let value = interpretExpression expr env
-    in E.set identifier value env
+interpretBinding env binding =
+    let
+        (identifier, value) =
+            case binding of
+                (FunctionDeclaration identifier params expr) ->
+                    (identifier, Function params expr)
+                (Constant identifier expr) ->
+                    (identifier, interpretExpression env expr)
+    in E.set env (identifier, value)
 
-interpretExpression :: Expression -> E.Env -> Concrete
-interpretExpression expression env =
+interpretExpression :: E.Env -> Expression -> Concrete
+interpretExpression env expression =
     case expression of
         Let bindings expr ->
             let localEnv = interpretBindings env bindings
-            in interpretExpression expr localEnv
+            in interpretExpression localEnv expr
         If condition trueValue falseValue ->
-            if isTrue $ interpretExpression condition env then
-                interpretExpression trueValue env
+            if isTrue $ interpretExpression env condition then
+                interpretExpression env trueValue
             else
-                interpretExpression falseValue env
+                interpretExpression env falseValue
         Binary left op right ->
-            let
-                leftValue = interpretExpression left env
-                rightValue = interpretExpression right env
+            let leftValue = interpretExpression env left
+                rightValue = interpretExpression env right
             in
                 case op of
                     Plus -> case (leftValue, rightValue) of
@@ -47,6 +52,14 @@ interpretExpression expression env =
                     And -> Bool $ isTrue leftValue && isTrue rightValue
                     Or -> Bool $ isTrue leftValue || isTrue rightValue
                     _ -> Integer 0
+        Call callee arguments ->
+            let concreteCallee = interpretExpression env callee
+            in case concreteCallee of
+                Function params expr ->
+                    let concreteArguments = map (interpretExpression env) arguments
+                        functionEnv = foldl' E.set env $ zip params concreteArguments
+                    in interpretExpression functionEnv expr
+                _ -> Integer 0
         Literal literal -> literal
         Identifier identifier ->
             case E.get identifier env of

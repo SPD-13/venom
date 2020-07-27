@@ -7,9 +7,9 @@ data AST
     deriving Show
 
 data Binding
-    = Function String [String] Expression
+    = FunctionDeclaration String [String] Expression
     | Constant String Expression
-    deriving Show
+    deriving (Eq, Show)
 
 data Expression
     = Let [Binding] Expression
@@ -19,9 +19,10 @@ data Expression
     | Literal Concrete
     | Identifier String
     | None
-    deriving Show
+    deriving (Eq, Show)
 
 data Concrete
     = Integer Integer
     | Bool Bool
+    | Function [String] Expression
     deriving (Eq, Show)
