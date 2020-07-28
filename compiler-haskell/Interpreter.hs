@@ -15,17 +15,10 @@ interpretBindings env bindings =
     foldl' interpretBinding env bindings
 
 interpretBinding :: E.Env -> Binding -> E.Env
-interpretBinding env binding =
-    let
-        (identifier, value) =
-            case binding of
-                (FunctionDeclaration identifier params expr) ->
-                    (identifier, Function params expr)
-                (Constant identifier expr) ->
-                    (identifier, interpretExpression env expr)
-    in E.set env (identifier, value)
+interpretBinding env (Binding identifier expr) =
+    E.set env (identifier, interpretExpression env expr)
 
-interpretExpression :: E.Env -> Expression -> Concrete
+interpretExpression :: E.Env -> Expression -> E.Literal
 interpretExpression env expression =
     case expression of
         Let bindings expr ->
@@ -42,28 +35,35 @@ interpretExpression env expression =
             in
                 case op of
                     Plus -> case (leftValue, rightValue) of
-                        (Integer l, Integer r) -> Integer $ l + r
+                        (E.Integer l, E.Integer r) -> E.Integer $ l + r
+                        _ -> E.RuntimeError
                     Minus -> case (leftValue, rightValue) of
-                        (Integer l, Integer r) -> Integer $ l - r
+                        (E.Integer l, E.Integer r) -> E.Integer $ l - r
+                        _ -> E.RuntimeError
                     Times -> case (leftValue, rightValue) of
-                        (Integer l, Integer r) -> Integer $ l * r
-                    Equality -> Bool $ leftValue == rightValue
-                    Inequality -> Bool $ leftValue /= rightValue
-                    And -> Bool $ isTrue leftValue && isTrue rightValue
-                    Or -> Bool $ isTrue leftValue || isTrue rightValue
-                    _ -> Integer 0
+                        (E.Integer l, E.Integer r) -> E.Integer $ l * r
+                        _ -> E.RuntimeError
+                    Equality -> E.Bool $ leftValue == rightValue
+                    Inequality -> E.Bool $ leftValue /= rightValue
+                    And -> E.Bool $ isTrue leftValue && isTrue rightValue
+                    Or -> E.Bool $ isTrue leftValue || isTrue rightValue
+                    _ -> E.RuntimeError
         Call callee arguments ->
             let concreteCallee = interpretExpression env callee
             in case concreteCallee of
-                Function params expr ->
+                E.Function closure params expr ->
                     let concreteArguments = map (interpretExpression env) arguments
-                        functionEnv = foldl' E.set env $ zip params concreteArguments
+                        functionEnv = foldl' E.set closure $ zip params concreteArguments
                     in interpretExpression functionEnv expr
-                _ -> Integer 0
-        Literal literal -> literal
+                _ -> E.RuntimeError
+        Literal literal ->
+            case literal of
+                Integer integer -> E.Integer integer
+                Bool bool -> E.Bool bool
+                Function params expr -> E.Function env params expr
         Identifier identifier ->
             case E.get identifier env of
                 Just value -> value
-                Nothing -> Integer 0
+                Nothing -> E.RuntimeError
 
-isTrue = (== Bool True)
+isTrue = (== E.Bool True)

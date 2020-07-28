@@ -7,8 +7,7 @@ data AST
     deriving Show
 
 data Binding
-    = FunctionDeclaration String [String] Expression
-    | Constant String Expression
+    = Binding String Expression
     deriving (Eq, Show)
 
 data Expression
@@ -16,12 +15,12 @@ data Expression
     | If Expression Expression Expression
     | Binary Expression Operator Expression
     | Call Expression [Expression]
-    | Literal Concrete
+    | Literal Literal
     | Identifier String
     | None
     deriving (Eq, Show)
 
-data Concrete
+data Literal
     = Integer Integer
     | Bool Bool
     | Function [String] Expression

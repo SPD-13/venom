@@ -1,3 +1,18 @@
+a() = b
+
+c() =
+    let b = 6
+    in a()
+
+result = c()
+
+makeAdder(n) =
+    let adder(m) = n + m
+    in adder
+
+fn = makeAdder(4)
+result2 = fn(12)
+
 fibonacci(n) =
     if n == 0 then
         0
@@ -6,4 +21,4 @@ fibonacci(n) =
     else
         fibonacci(n - 1) + fibonacci(n - 2)
 
-result = fibonacci(11)
+result3 = fibonacci(11)
