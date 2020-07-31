@@ -25,10 +25,10 @@ version:             0.1.0.0
 -- bug-reports:
 
 -- The license under which the package is released.
-license:             BSD3
+-- license:
 
 -- The file containing the license text.
-license-file:        LICENSE
+-- license-file:
 
 -- The package author(s).
 author:              Arnaud Roussel
