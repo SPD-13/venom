@@ -6,8 +6,12 @@ import Operator
 
 parse :: [Token] -> AST
 parse tokens =
-    let (ast, _) = mapFirst Bindings $ bindings tokens
-    in ast
+    let (ast, rest) = mapFirst Bindings $ bindings tokens
+    in
+        if null rest then
+            ast
+        else
+            ast -- Error
 
 bindings :: [Token] -> ([Binding], [Token])
 bindings [] = ([], [])

@@ -55,8 +55,15 @@ lexerStep state input@(char:rest) =
                 '&' -> if peek rest == "&" then pdc $ Operator And else (state, "")
                 '"' -> parseString state rest
                 '\'' -> parseCharLiteral state rest
+                '$' ->
+                    if peek rest == "[" then
+                        removeBlockComment state $ tail rest
+                    else if peek rest == "]" then
+                        (state, "")
+                    else
+                        removeComment state rest
                 _ ->
-                     if isDigit char then
+                     if isDigit char then 
                         parseInteger state input
                     else if isUpper char then
                         parseDataType state input
@@ -128,12 +135,47 @@ parseInteger state input =
         , rest
         )
 
+removeBlockComment state input =
+    let newState = state { currentColumn = currentColumn state + 2 }
+    in removeBlockComment' 1 newState input
+
+removeBlockComment' :: Integer -> State -> String -> (State, String)
+removeBlockComment' level state input =
+    let (skipped, rest) = span (not . (`elem` ['$', '\n'])) input
+        newRest = drop 1 rest
+    in
+        if peek rest == "\n" then
+            removeBlockComment' level (newLine state) newRest
+        else if peek rest == "$" then
+            let newState = state { currentColumn = currentColumn state + genericLength skipped + 2 }
+                newInput = drop 1 newRest
+            in
+                if peek newRest == "[" then
+                    removeBlockComment' (level + 1) newState newInput
+                else if peek newRest == "]" then
+                    if level == 1 then
+                        (newState, newInput)
+                    else
+                        removeBlockComment' (level - 1) newState newInput
+                else
+                    removeBlockComment' level (state { currentColumn = currentColumn state + genericLength skipped + 1 }) newRest
+        else
+            (state, rest)
+
+removeComment :: State -> String -> (State, String)
+removeComment state input =
+    let rest = dropWhile (/= '\n') input
+    in
+        ( newLine state
+        , drop 1 rest
+        )
+
 removeWhitespace (state, input) =
     let (whitespace, rest) = span (`elem` [' ', '\t']) input
     in
         if peek rest == "\n" then
             removeWhitespace
-                ( state { currentLine = currentLine state + 1, currentColumn = 1 }
+                ( newLine state
                 , tail rest
                 )
         else
@@ -143,3 +185,6 @@ removeWhitespace (state, input) =
 
 getPosition :: State -> TokenPosition
 getPosition state = TokenPosition (currentLine state) (currentColumn state)
+
+newLine :: State -> State
+newLine state = state { currentLine = currentLine state + 1, currentColumn = 1 }
