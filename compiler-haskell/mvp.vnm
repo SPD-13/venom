@@ -1,3 +1,8 @@
+a = 4
+b = a + 1
+
+$[
+
 a() = b
 
 c() =
@@ -22,3 +27,44 @@ fibonacci(n) =
         fibonacci(n - 1) + fibonacci(n - 2)
 
 result3 = fibonacci(11)
+
+$ 4
+result4 = d
+d = 4
+
+$ Does not resolve
+test() =
+    result5
+result5 = test()
+
+$ Does not resolve
+result6 = result6
+
+$ Illegal?
+result7 = 1
+result7 = 2
+$[ $]
+$ Does not resolve
+test() =
+    result8
+result8 = test
+
+$ Resolves (recursion)
+test() =
+    result9()
+result9 = test
+
+$ Does not resolve
+result10 = result11
+result11 = result10
+
+$ Resolves (recursion)
+result12() =
+    result13()
+result13() = 
+    result12()
+
+$ RuntimeError / TypeCheck
+result14 = 8()
+
+$]

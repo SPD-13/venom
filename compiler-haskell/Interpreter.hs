@@ -15,7 +15,7 @@ interpretBindings env bindings =
     foldl' interpretBinding env bindings
 
 interpretBinding :: E.Env -> Binding -> E.Env
-interpretBinding env (Binding identifier expr) =
+interpretBinding env (Binding identifier expr _) =
     E.set env (identifier, interpretExpression env expr)
 
 interpretExpression :: E.Env -> Expression -> E.Literal

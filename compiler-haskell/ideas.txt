@@ -1,0 +1,35 @@
+Chain '(' and '<' lexing right after parsing value symbol before going back to main loop so I can keep whitespace context
+    Different uses of parens (grouping VS function calls) and '<' (less than VS generics)
+Design the parser so that I can ignore all newlines and indentation?
+Compressing binary output and decompressing in Javascript?
+Check Elm behaviour for: / 0, head
+Research non-empty lists VS safety
+Peek / match / consume with state monad for parser
+Error handling / expect
+Assume tabs are 4 columns for token position?
+In panic mode, drop tokens until next "=" and assume some default string as the bind target (if type checker isn't run)
+Are L-Values valid expressions? (type annotations in function signatures)
+Fail fast VS sane defaults?
+Let in VS where?
+Typechecked JSX-like syntax for html?
+Different AST node for short-circuiting functions
+New assignment syntax ("=!" or something) for lazy-evaluated parameters ("if" and boolean operators)
+S-Expressions useful for AST manipulation?
+Functions with parameters already passed in (e.g. "+(2, 4)!") as a way to do lazy evaluation?
+Are checked exceptions with IDE support good enough?
+Allow scope shadowing? No.
+False VS False()
+Function equality?
+Generalize traversal of the AST with Traversable typeclass or something?
+Local "mutability" / redeclaration allowed or not (in Haskell?)
+Extensible record types?
+"Skip" scopes (exceptions / subscriptions)?
+Why "undefined" exists in Haskell?
+Why type inference is not decidable in Haskell?
+Shadowing for type variables? It's probable fine
+What the fuck is "fix"
+Local state VS explicit passing of global state (component system for less boilerplater / Web Components?)
+Is it possible to use type checking results in the interpreter (model valid types)?
+"=>" instead of just "=" in record functions to update field based on current value
+Low priority for pipe operator (expression |> Debug.log)
+Support binding to underscore?
