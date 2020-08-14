@@ -29,7 +29,28 @@ Why type inference is not decidable in Haskell?
 Shadowing for type variables? It's probable fine
 What the fuck is "fix"
 Local state VS explicit passing of global state (component system for less boilerplater / Web Components?)
-Is it possible to use type checking results in the interpreter (model valid types)?
+Is it possible to use type checking results in the interpreter (model valid types, e.g. "BoolExpr")?
 "=>" instead of just "=" in record functions to update field based on current value
 Low priority for pipe operator (expression |> Debug.log)
 Support binding to underscore?
+Evaluate dependencies when creating a closure? Smaller environments to store in closures
+Minimal depency evaluation (start from "in" and traverse "let" bindings as required)
+    VS Find resolvable order for bindings in type checker and evaluate sequentially
+Lambda Lifting VS Closure Conversion
+Recursive constants interpreted as lazily evaluated infinite structures
+Recursion 1:
+    Keep current environment during function call but overwrite with closure and parameters
+    Omit recursive functions from closures (assume they will be in the current environment)
+    Tag recursive functions with their original name and make sure it's in the environment (optionally rename current variable)
+Recursion 2:
+    Mutable environments somehow so I don't need to evaluate the function body / free variables?
+    STRef and IORef?
+Recursion 3:
+    Rewrite recursive functions / calls using fix / Y combinator -> Inefficient
+Recursion 4:
+    Only put unevaluated expressions in closures?
+Think of (implement?) closures as pre-partially applied functions
+Closures VS rewriting free variables with current values in function expressions (same for partial application)
+Research defunctionalization
+Treat global (top-level) variables differently (always evaluate eagerly?)
+Venomous: Implement mutability but no looping constructs (to limit its usage)

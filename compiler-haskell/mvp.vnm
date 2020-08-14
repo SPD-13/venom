@@ -1,6 +1,25 @@
 a = 4
 b = a + 1
 
+complicated = let
+    a = 4 * 10 $ Expensive!
+    b(c) = a + c
+    d = b(2)
+    e = d + a $ Oh no! Have to recompute a!
+    in e
+
+isOdd(n) =
+    if n == 0 then
+        0
+    else
+        isEven(n - 1)
+
+isEven(n) =
+    if n == 0 then
+        1
+    else
+        isOdd(n - 1)
+
 $[
 
 a() = b

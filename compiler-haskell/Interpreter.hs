@@ -16,54 +16,60 @@ interpretBindings env bindings =
 
 interpretBinding :: E.Env -> Binding -> E.Env
 interpretBinding env (Binding identifier expr _) =
-    E.set env (identifier, interpretExpression env expr)
+    E.set env (identifier, E.Computed (interpretExpression env expr))
 
-interpretExpression :: E.Env -> Expression -> E.Literal
+interpretExpression :: E.Env -> Expression -> (E.Env, E.Computed)
 interpretExpression env expression =
     case expression of
         Let bindings expr ->
             let localEnv = interpretBindings env bindings
             in interpretExpression localEnv expr
         If condition trueValue falseValue ->
-            if isTrue $ interpretExpression env condition then
-                interpretExpression env trueValue
-            else
-                interpretExpression env falseValue
+            let (newEnv, result) = interpretExpression env condition
+            in
+                if isTrue $ result then
+                    interpretExpression newEnv trueValue
+                else
+                    interpretExpression newEnv falseValue
         Binary left op right ->
-            let leftValue = interpretExpression env left
-                rightValue = interpretExpression env right
+            let (newEnv, leftValue) = interpretExpression env left
+                (newestEnv, rightValue) = interpretExpression newEnv right
             in
                 case op of
                     Plus -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> E.Integer $ l + r
-                        _ -> E.RuntimeError
+                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l + r)
+                        _ -> (newestEnv, E.RuntimeError)
                     Minus -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> E.Integer $ l - r
-                        _ -> E.RuntimeError
+                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l - r)
+                        _ -> (newestEnv, E.RuntimeError)
                     Times -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> E.Integer $ l * r
-                        _ -> E.RuntimeError
-                    Equality -> E.Bool $ leftValue == rightValue
-                    Inequality -> E.Bool $ leftValue /= rightValue
-                    And -> E.Bool $ isTrue leftValue && isTrue rightValue
-                    Or -> E.Bool $ isTrue leftValue || isTrue rightValue
-                    _ -> E.RuntimeError
+                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l * r)
+                        _ -> (newestEnv, E.RuntimeError)
+                    Equality -> (newestEnv, E.Bool $ leftValue == rightValue)
+                    Inequality -> (newestEnv, E.Bool $ leftValue /= rightValue)
+                    And -> (newestEnv, E.Bool $ isTrue leftValue && isTrue rightValue)
+                    Or -> (newestEnv, E.Bool $ isTrue leftValue || isTrue rightValue)
+                    _ -> (newestEnv, E.RuntimeError)
         Call callee arguments ->
-            let concreteCallee = interpretExpression env callee
+            let (newEnv, concreteCallee) = interpretExpression env callee
             in case concreteCallee of
                 E.Function closure params expr ->
                     let concreteArguments = map (interpretExpression env) arguments
                         functionEnv = foldl' E.set closure $ zip params concreteArguments
                     in interpretExpression functionEnv expr
-                _ -> E.RuntimeError
+                _ -> (newEnv, E.RuntimeError)
         Literal literal ->
             case literal of
-                Integer integer -> E.Integer integer
-                Bool bool -> E.Bool bool
-                Function params expr -> E.Function env params expr
+                Integer integer -> (env, E.Integer integer)
+                Bool bool -> (env, E.Bool bool)
+                Function params expr -> (env, E.Function env params expr)
         Identifier identifier ->
             case E.get identifier env of
-                Just value -> value
-                Nothing -> E.RuntimeError
+                Just value -> case value of
+                    E.Expression expr ->
+                        let (newEnv, computed) = interpretExpression env expr
+                        in (E.set newEnv (identifier, E.Computed computed), computed)
+                    E.Computed computed -> (env, computed)
+                Nothing -> (env, E.RuntimeError)
 
 isTrue = (== E.Bool True)

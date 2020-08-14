@@ -6,13 +6,13 @@ data AST
     = Bindings [Binding]
 
 data Binding
-    = Binding String Expression BindingType
+    = Binding String Expression ExpressionType
     deriving Eq
 
-data BindingType
+data ExpressionType
     = TInteger
     | TBool
-    | TFunction [BindingType] BindingType
+    | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving (Eq, Show)
 
@@ -29,7 +29,7 @@ data Expression
 data Literal
     = Integer Integer
     | Bool Bool
-    | Function [String] Expression
+    | Function [String] [String] Expression
     deriving (Eq, Show)
 
 unlines' = init . unlines

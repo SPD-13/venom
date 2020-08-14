@@ -14,7 +14,7 @@ main = do
     let ast = Parser.parse tokens
     --putStrLn "\n--- Parser output ---\n"
     --print ast
-    let sortedAst = TypeChecker.check ast
+    let sortedAst = TypeChecker.typeCheck ast
     putStrLn "\n--- Type checker output ---\n"
     print sortedAst
     let result = Interpreter.interpret sortedAst
