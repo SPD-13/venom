@@ -53,16 +53,18 @@ interpretExpression env expression =
         Call callee arguments ->
             let (newEnv, concreteCallee) = interpretExpression env callee
             in case concreteCallee of
-                E.Function closure params expr ->
+                E.Closure closureEnv (Function params expr) ->
                     let concreteArguments = map (interpretExpression env) arguments
-                        functionEnv = foldl' E.set closure $ zip params concreteArguments
+                        functionEnv = foldl' E.set closureEnv $ zip params concreteArguments
                     in interpretExpression functionEnv expr
                 _ -> (newEnv, E.RuntimeError)
         Literal literal ->
             case literal of
                 Integer integer -> (env, E.Integer integer)
                 Bool bool -> (env, E.Bool bool)
-                Function params expr -> (env, E.Function env params expr)
+                Lambda freeVars function ->
+                    let (newEnv, closureEnv) = foldl' resolveFreeVariable (env, E.new) freeVars
+                    in (newEnv, E.Closure closureEnv function)
         Identifier identifier ->
             case E.get identifier env of
                 Just value -> case value of
@@ -71,5 +73,16 @@ interpretExpression env expression =
                         in (E.set newEnv (identifier, E.Computed computed), computed)
                     E.Computed computed -> (env, computed)
                 Nothing -> (env, E.RuntimeError)
+
+resolveFreeVariable :: (E.Env, E.Env) -> String -> (E.Env, E.Env)
+resolveFreeVariable (currentEnv, closureEnv) identifier =
+    case E.get identifier currentEnv of
+        Just value -> case value of
+            E.Expression expr ->
+                let (newEnv, computed) = interpretExpression currentEnv expr
+                    val = E.Computed computed
+                in (E.set newEnv (identifier, val), E.set closureEnv (identifier, val))
+            computed -> (currentEnv, E.set closureEnv (identifier, computed))
+        Nothing -> (currentEnv, closureEnv)
 
 isTrue = (== E.Bool True)

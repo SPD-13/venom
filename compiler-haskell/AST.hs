@@ -29,8 +29,10 @@ data Expression
 data Literal
     = Integer Integer
     | Bool Bool
-    | Function [String] [String] Expression
+    | Lambda [String] Function
     deriving (Eq, Show)
+
+data Function = Function [String] Expression deriving (Eq, Show)
 
 unlines' = init . unlines
 

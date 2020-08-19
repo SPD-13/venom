@@ -2,6 +2,7 @@ module Main where
 
 import Lexer
 import Parser
+import Resolver
 import TypeChecker
 import Interpreter
 
@@ -14,10 +15,11 @@ main = do
     let ast = Parser.parse tokens
     --putStrLn "\n--- Parser output ---\n"
     --print ast
-    let sortedAst = TypeChecker.typeCheck ast
-    putStrLn "\n--- Type checker output ---\n"
-    print sortedAst
-    let result = Interpreter.interpret sortedAst
+    let resolvedAST = Resolver.resolve ast
+    let typeCheckedAST = TypeChecker.typeCheck resolvedAST
+    --putStrLn "\n--- Type checker output ---\n"
+    --print typeCheckedAST
+    let result = Interpreter.interpret typeCheckedAST
     putStrLn "\n--- Interpreter output ---\n"
     putStrLn result
     putStrLn ""

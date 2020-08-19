@@ -29,7 +29,7 @@ function identifier tokens =
     in case peek rest of
         [Equals] ->
             let (expr, newTokens) = expression $ tail rest
-                binding = Binding identifier (Literal (Function [] params expr)) TUndefined
+                binding = Binding identifier (Literal (Lambda [] (Function params expr))) TUndefined
             in mapFirst (binding:) $ bindings newTokens
         _ -> ([], [])
 

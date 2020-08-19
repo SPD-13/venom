@@ -3,18 +3,18 @@ module Environment (Env, new, set, get, Computed(..), Value(..)) where
 import Data.List (intercalate)
 import qualified Data.Map as M
 
-import AST (Expression)
+import AST (Expression, Function(..))
 
 data Computed
     = Integer Integer
     | Bool Bool
-    | Function Env [String] Expression
+    | Closure Env Function
     | RuntimeError
 
 instance Show Computed where
     show (Integer a) = show a
     show (Bool a) = show a
-    show (Function _ params _) = "Function(" ++ intercalate ", " params ++ ")"
+    show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
     show RuntimeError = "RuntimeError"
 
 instance Eq Computed where
