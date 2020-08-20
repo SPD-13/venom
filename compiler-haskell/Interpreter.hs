@@ -8,22 +8,32 @@ import qualified Environment as E
 
 interpret :: AST -> String
 interpret (Bindings bindings) =
-    show $ interpretBindings E.new bindings
+    show $ interpretBindings bindings
 
-interpretBindings :: E.Env -> [Binding] -> E.Env
-interpretBindings env bindings =
-    foldl' interpretBinding env bindings
+getEnvValue (Binding identifier value _) = (identifier, E.Expression value)
+getIdentifier (Binding identifier _ _) = identifier
 
-interpretBinding :: E.Env -> Binding -> E.Env
-interpretBinding env (Binding identifier expr _) =
-    E.set env (identifier, E.Computed (interpretExpression env expr))
+interpretBindings :: [Binding] -> E.Env
+interpretBindings bindings =
+    let env = foldl' E.set E.new (map getEnvValue bindings)
+    in foldl' interpretIdentifier env (map getIdentifier bindings)
+
+interpretIdentifier :: E.Env -> String -> E.Env
+interpretIdentifier env identifier =
+    case E.get identifier env of
+        Just (E.Expression expr) ->
+            let (newEnv, computed) = interpretExpression env expr
+            in E.set newEnv (identifier, E.Computed computed)
+        _ -> env
 
 interpretExpression :: E.Env -> Expression -> (E.Env, E.Computed)
 interpretExpression env expression =
     case expression of
         Let bindings expr ->
-            let localEnv = interpretBindings env bindings
-            in interpretExpression localEnv expr
+            let localEnv = foldl' E.set env (map getEnvValue bindings)
+                (newEnv, result) = interpretExpression localEnv expr
+                finalEnv = foldl' E.delete newEnv (map getIdentifier bindings)
+            in (finalEnv, result)
         If condition trueValue falseValue ->
             let (newEnv, result) = interpretExpression env condition
             in
@@ -54,9 +64,13 @@ interpretExpression env expression =
             let (newEnv, concreteCallee) = interpretExpression env callee
             in case concreteCallee of
                 E.Closure closureEnv (Function params expr) ->
-                    let concreteArguments = map (interpretExpression env) arguments
-                        functionEnv = foldl' E.set closureEnv $ zip params concreteArguments
-                    in interpretExpression functionEnv expr
+                    let interpretArgument argument (e, args) =
+                            let (newE, concreteArgument) = interpretExpression e argument
+                            in (newE, concreteArgument : args)
+                        (newestEnv, concreteArguments) = foldr interpretArgument (newEnv, []) arguments
+                        functionEnv = foldl' E.set closureEnv $ zip params $ map E.Computed concreteArguments
+                        (_, result) = interpretExpression functionEnv expr
+                    in (newestEnv, result)
                 _ -> (newEnv, E.RuntimeError)
         Literal literal ->
             case literal of

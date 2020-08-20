@@ -33,7 +33,3 @@ check expression expectedType =
         Nothing
     else
         Nothing
-
-findFreeVariables :: [String] -> Expression -> [String]
-findFreeVariables params expression = case expression of
-    _ -> []

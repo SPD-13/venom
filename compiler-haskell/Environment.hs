@@ -1,4 +1,4 @@
-module Environment (Env, new, set, get, Computed(..), Value(..)) where
+module Environment (Env, new, set, get, delete, Computed(..), Value(..)) where
 
 import Data.List (intercalate)
 import qualified Data.Map as M
@@ -15,7 +15,7 @@ instance Show Computed where
     show (Integer a) = show a
     show (Bool a) = show a
     show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
-    show RuntimeError = "RuntimeError"
+    show RuntimeError = "Runtime error"
 
 instance Eq Computed where
     (Integer a) == (Integer b) = a == b
@@ -25,7 +25,10 @@ instance Eq Computed where
 data Value
     = Expression Expression
     | Computed Computed
-    deriving Show
+
+instance Show Value where
+    show (Expression _) = "Not evaluated"
+    show (Computed computed) = show computed
 
 newtype Env = Env (M.Map String Value)
 
@@ -40,3 +43,6 @@ set (Env env) (identifier, value) = Env $ M.insert identifier value env
 
 get :: String -> Env -> Maybe Value
 get identifier (Env env) = M.lookup identifier env
+
+delete :: Env -> String -> Env
+delete (Env env) identifier = Env $ M.delete identifier env

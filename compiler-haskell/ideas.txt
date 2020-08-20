@@ -56,3 +56,4 @@ Research defunctionalization
 Treat global (top-level) variables differently (always evaluate eagerly?)
 Venomous: Implement mutability but no looping constructs (to limit its usage)
 Find a clean pattern for AST traversal with an accumulator
+Lazy evaluation of function arguments
