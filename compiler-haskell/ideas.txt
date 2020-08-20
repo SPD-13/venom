@@ -44,7 +44,8 @@ Recursion 1:
     Tag recursive functions with their original name and make sure it's in the environment (optionally rename current variable)
 Recursion 2:
     Mutable environments somehow so I don't need to evaluate the function body / free variables?
-    STRef and IORef?
+    Closure environment pointing to itself
+    STRef (or maybe IORef)?
 Recursion 3:
     Rewrite recursive functions / calls using fix / Y combinator -> Inefficient
 Recursion 4:
@@ -54,3 +55,4 @@ Closures VS rewriting free variables with current values in function expressions
 Research defunctionalization
 Treat global (top-level) variables differently (always evaluate eagerly?)
 Venomous: Implement mutability but no looping constructs (to limit its usage)
+Find a clean pattern for AST traversal with an accumulator
