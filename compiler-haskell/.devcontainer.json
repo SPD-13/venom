@@ -1,6 +1,5 @@
 {
     "name": "Haskell compiler",
-    //"image": "haskell:8",
     "dockerFile": "Dockerfile",
     "extensions": [
         "Vans.haskero"
