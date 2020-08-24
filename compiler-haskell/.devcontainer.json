@@ -2,6 +2,6 @@
     "name": "Haskell compiler",
     "dockerFile": "Dockerfile",
     "extensions": [
-        "Vans.haskero"
+        "haskell.haskell"
     ]
 }
