@@ -1,48 +1,46 @@
 module Environment (Env, new, set, get, delete, Computed(..), Value(..)) where
 
 import Data.List (intercalate)
-import qualified Data.Map as M
+import Control.Monad.ST
+
+import qualified Data.HashTable.Class as H
+import qualified Data.HashTable.ST.Basic as B
 
 import AST (Expression, Function(..))
 
-data Computed
+type HashTable s k v = B.HashTable s k v
+
+newtype Env s = Env (HashTable s String (Value s))
+
+data Computed s
     = Integer Integer
     | Bool Bool
-    | Closure Env Function
+    | Closure (Env s) Function
     | RuntimeError
 
-instance Show Computed where
+instance Show (Computed s) where
     show (Integer a) = show a
     show (Bool a) = show a
     show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
     show RuntimeError = "Runtime error"
 
-instance Eq Computed where
+instance Eq (Computed s) where
     (Integer a) == (Integer b) = a == b
     (Bool a) == (Bool b) = a == b
     _ == _ = False
 
-data Value
+data Value s
     = Expression Expression
-    | Computed Computed
+    | Computed (Computed s)
 
-instance Show Value where
-    show (Expression _) = "Not evaluated"
-    show (Computed computed) = show computed
+new :: ST s (Env s)
+new = fmap Env H.new
 
-newtype Env = Env (M.Map String Value)
+set :: Env s -> (String, Value s) -> ST s ()
+set (Env env) (identifier, value) = H.insert env identifier value
 
-instance Show Env where
-    show (Env env) = intercalate "\n" $ map (\(k, v) -> k ++ " = " ++ show v) $ M.toList env
+get :: String -> Env s -> ST s (Maybe (Value s))
+get identifier (Env env) = H.lookup env identifier
 
-new :: Env
-new = Env M.empty
-
-set :: Env -> (String, Value) -> Env
-set (Env env) (identifier, value) = Env $ M.insert identifier value env
-
-get :: String -> Env -> Maybe Value
-get identifier (Env env) = M.lookup identifier env
-
-delete :: Env -> String -> Env
-delete (Env env) identifier = Env $ M.delete identifier env
+delete :: Env s -> String -> ST s ()
+delete (Env env) identifier = H.delete env identifier

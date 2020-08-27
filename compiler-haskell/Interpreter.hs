@@ -1,6 +1,7 @@
 module Interpreter where
 
-import Data.List (foldl')
+import Data.List (intercalate)
+import Control.Monad.ST
 
 import Operator
 import AST
@@ -8,99 +9,97 @@ import qualified Environment as E
 
 interpret :: AST -> String
 interpret (Bindings bindings) =
-    show $ interpretBindings bindings
+    runST $ interpretBindings bindings
 
 getEnvValue (Binding identifier value _) = (identifier, E.Expression value)
 getIdentifier (Binding identifier _ _) = identifier
 
-interpretBindings :: [Binding] -> E.Env
-interpretBindings bindings =
-    let env = foldl' E.set E.new (map getEnvValue bindings)
-    in foldl' interpretIdentifier env (map getIdentifier bindings)
+interpretBindings :: [Binding] -> ST s String
+interpretBindings bindings = do
+    env <- E.new
+    sequence_ $ map (E.set env . getEnvValue) bindings
+    let identifiers = map getIdentifier bindings
+    values <- sequence $ map (interpretIdentifier [] env) identifiers
+    return $ intercalate "\n" $ map (\(i, v) -> i ++ " = " ++ show v) $ zip identifiers values
 
-interpretIdentifier :: E.Env -> String -> E.Env
-interpretIdentifier env identifier =
-    case E.get identifier env of
-        Just (E.Expression expr) ->
-            let (newEnv, computed) = interpretExpression [identifier] env expr
-            in E.set newEnv (identifier, E.Computed computed)
-        _ -> env
+interpretIdentifier :: [String] -> E.Env s -> String -> ST s (E.Computed s)
+interpretIdentifier evaluating env identifier = do
+    val <- E.get identifier env
+    case val of
+        Just value -> case value of
+            E.Expression expr -> do
+                computed <- interpretExpression (identifier:evaluating) env expr
+                E.set env (identifier, E.Computed computed)
+                return computed
+            E.Computed computed -> return computed
+        Nothing -> return E.RuntimeError
 
-interpretExpression :: [String] -> E.Env -> Expression -> (E.Env, E.Computed)
+interpretExpression :: [String] -> E.Env s -> Expression -> ST s (E.Computed s)
 interpretExpression evaluating env expression =
     let eval = interpretExpression evaluating
     in case expression of
-        Let bindings expr ->
-            let localEnv = foldl' E.set env (map getEnvValue bindings)
-                (newEnv, result) = eval localEnv expr
-                finalEnv = foldl' E.delete newEnv (map getIdentifier bindings)
-            in (finalEnv, result)
-        If condition trueValue falseValue ->
-            let (newEnv, result) = eval env condition
-            in
-                if isTrue $ result then
-                    eval newEnv trueValue
-                else
-                    eval newEnv falseValue
-        Binary left op right ->
-            let (newEnv, leftValue) = eval env left
-                (newestEnv, rightValue) = eval newEnv right
-            in
-                case op of
-                    Plus -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l + r)
-                        _ -> (newestEnv, E.RuntimeError)
-                    Minus -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l - r)
-                        _ -> (newestEnv, E.RuntimeError)
-                    Times -> case (leftValue, rightValue) of
-                        (E.Integer l, E.Integer r) -> (newestEnv, E.Integer $ l * r)
-                        _ -> (newestEnv, E.RuntimeError)
-                    Equality -> (newestEnv, E.Bool $ leftValue == rightValue)
-                    Inequality -> (newestEnv, E.Bool $ leftValue /= rightValue)
-                    And -> (newestEnv, E.Bool $ isTrue leftValue && isTrue rightValue)
-                    Or -> (newestEnv, E.Bool $ isTrue leftValue || isTrue rightValue)
-                    _ -> (newestEnv, E.RuntimeError)
-        Call callee arguments ->
-            let (newEnv, concreteCallee) = eval env callee
-            in case concreteCallee of
-                E.Closure closureEnv (Function params expr) ->
-                    let interpretArgument argument (e, args) =
-                            let (newE, concreteArgument) = eval e argument
-                            in (newE, concreteArgument : args)
-                        (newestEnv, concreteArguments) = foldr interpretArgument (newEnv, []) arguments
-                        functionEnv = foldl' E.set closureEnv $ zip params $ map E.Computed concreteArguments
-                        (_, result) = interpretExpression [] functionEnv expr
-                    in (newestEnv, result)
-                _ -> (newEnv, E.RuntimeError)
+        Let bindings expr -> do
+            sequence_ $ map (E.set env . getEnvValue) bindings
+            result <- eval env expr
+            sequence_ $ map (E.delete env . getIdentifier) bindings
+            return result
+        If condition trueValue falseValue -> do
+            result <- eval env condition
+            if isTrue $ result then
+                eval env trueValue
+            else
+                eval env falseValue
+        Binary left op right -> do
+            leftValue <- eval env left
+            rightValue <- eval env right
+            case op of
+                Plus -> case (leftValue, rightValue) of
+                    (E.Integer l, E.Integer r) -> return $ E.Integer $ l + r
+                    _ -> return E.RuntimeError
+                Minus -> case (leftValue, rightValue) of
+                    (E.Integer l, E.Integer r) -> return $ E.Integer $ l - r
+                    _ -> return E.RuntimeError
+                Times -> case (leftValue, rightValue) of
+                    (E.Integer l, E.Integer r) -> return $ E.Integer $ l * r
+                    _ -> return E.RuntimeError
+                Equality -> return $ E.Bool $ leftValue == rightValue
+                Inequality -> return $ E.Bool $ leftValue /= rightValue
+                And -> return $ E.Bool $ isTrue leftValue && isTrue rightValue
+                Or -> return $ E.Bool $ isTrue leftValue || isTrue rightValue
+                _ -> return E.RuntimeError
+        Call callee arguments -> do
+            concreteCallee <- eval env callee
+            case concreteCallee of
+                E.Closure closureEnv (Function params expr) -> do
+                    concreteArguments <- sequence $ map (eval env) arguments
+                    -- Mutating the closure environment might be problematic with partial application
+                    sequence_ $ map (E.set closureEnv) $ zip params $ map E.Computed concreteArguments
+                    interpretExpression [] closureEnv expr
+                _ -> return E.RuntimeError
         Literal literal ->
             case literal of
-                Integer integer -> (env, E.Integer integer)
-                Bool bool -> (env, E.Bool bool)
-                Lambda freeVars function ->
-                    let (newEnv, closureEnv) = foldl' (resolveFreeVariable evaluating) (env, E.new) freeVars
-                    in (newEnv, E.Closure closureEnv function)
-        Identifier identifier ->
-            case E.get identifier env of
-                Just value -> case value of
-                    E.Expression expr ->
-                        let (newEnv, computed) = interpretExpression (identifier:evaluating) env expr
-                        in (E.set newEnv (identifier, E.Computed computed), computed)
-                    E.Computed computed -> (env, computed)
-                Nothing -> (env, E.RuntimeError)
+                Integer integer -> return $ E.Integer integer
+                Bool bool -> return $ E.Bool bool
+                Lambda freeVars function -> do
+                    closureEnv <- E.new
+                    sequence_ $ map (resolveFreeVariable evaluating (env, closureEnv)) freeVars
+                    return $ E.Closure closureEnv function
+        Identifier identifier -> interpretIdentifier evaluating env identifier
 
-resolveFreeVariable :: [String] -> (E.Env, E.Env) -> String -> (E.Env, E.Env)
-resolveFreeVariable evaluating (currentEnv, closureEnv) identifier =
-    case E.get identifier currentEnv of
+resolveFreeVariable :: [String] -> (E.Env s, E.Env s) -> String -> ST s ()
+resolveFreeVariable evaluating (currentEnv, closureEnv) identifier = do
+    val <- E.get identifier currentEnv
+    case val of
         Just value -> case value of
             E.Expression expr ->
                 if elem identifier evaluating then
-                    (currentEnv, E.set closureEnv (identifier, value))
-                else
-                    let (newEnv, computed) = interpretExpression (identifier:evaluating) currentEnv expr
-                        val = E.Computed computed
-                    in (E.set newEnv (identifier, val), E.set closureEnv (identifier, val))
-            computed -> (currentEnv, E.set closureEnv (identifier, computed))
-        Nothing -> (currentEnv, closureEnv)
+                    E.set closureEnv (identifier, value)
+                else do
+                    computed <- interpretExpression (identifier:evaluating) currentEnv expr
+                    let envValue = (identifier, E.Computed computed)
+                    E.set currentEnv envValue
+                    E.set closureEnv envValue
+            computed -> E.set closureEnv (identifier, computed)
+        Nothing -> return ()
 
 isTrue = (== E.Bool True)
