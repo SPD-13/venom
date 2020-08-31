@@ -1,7 +1,9 @@
 module Interpreter where
 
 import Data.List (intercalate)
+import Control.Monad (unless)
 import Control.Monad.ST
+import Data.STRef
 
 import Operator
 import AST
@@ -26,12 +28,14 @@ interpretIdentifier :: [String] -> E.Env s -> String -> ST s (E.Computed s)
 interpretIdentifier evaluating env identifier = do
     val <- E.get identifier env
     case val of
-        Just value -> case value of
-            E.Expression expr -> do
-                computed <- interpretExpression (identifier:evaluating) env expr
-                E.set env (identifier, E.Computed computed)
-                return computed
-            E.Computed computed -> return computed
+        Just ref -> do
+            value <- readSTRef ref
+            case value of
+                E.Expression expr -> do
+                    computed <- interpretExpression (identifier:evaluating) env expr
+                    writeSTRef ref $ E.Computed computed
+                    return computed
+                E.Computed computed -> return computed
         Nothing -> return E.RuntimeError
 
 interpretExpression :: [String] -> E.Env s -> Expression -> ST s (E.Computed s)
@@ -72,9 +76,9 @@ interpretExpression evaluating env expression =
             case concreteCallee of
                 E.Closure closureEnv (Function params expr) -> do
                     concreteArguments <- sequence $ map (eval env) arguments
-                    -- Mutating the closure environment might be problematic with partial application
-                    sequence_ $ map (E.set closureEnv) $ zip params $ map E.Computed concreteArguments
-                    interpretExpression [] closureEnv expr
+                    functionEnv <- E.copy closureEnv
+                    sequence_ $ map (E.set functionEnv) $ zip params $ map E.Computed concreteArguments
+                    interpretExpression [] functionEnv expr
                 _ -> return E.RuntimeError
         Literal literal ->
             case literal of
@@ -82,24 +86,23 @@ interpretExpression evaluating env expression =
                 Bool bool -> return $ E.Bool bool
                 Lambda freeVars function -> do
                     closureEnv <- E.new
-                    sequence_ $ map (resolveFreeVariable evaluating (env, closureEnv)) freeVars
+                    sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
                     return $ E.Closure closureEnv function
         Identifier identifier -> interpretIdentifier evaluating env identifier
 
-resolveFreeVariable :: [String] -> (E.Env s, E.Env s) -> String -> ST s ()
-resolveFreeVariable evaluating (currentEnv, closureEnv) identifier = do
+resolveFreeVariable :: [String] -> E.Env s -> E.Env s -> String -> ST s ()
+resolveFreeVariable evaluating currentEnv closureEnv identifier = do
     val <- E.get identifier currentEnv
     case val of
-        Just value -> case value of
-            E.Expression expr ->
-                if elem identifier evaluating then
-                    E.set closureEnv (identifier, value)
-                else do
-                    computed <- interpretExpression (identifier:evaluating) currentEnv expr
-                    let envValue = (identifier, E.Computed computed)
-                    E.set currentEnv envValue
-                    E.set closureEnv envValue
-            computed -> E.set closureEnv (identifier, computed)
+        Just ref -> do
+            E.setRef closureEnv identifier ref
+            value <- readSTRef ref
+            case value of
+                E.Expression expr ->
+                    unless (elem identifier evaluating) $ do
+                        computed <- interpretExpression (identifier:evaluating) currentEnv expr
+                        writeSTRef ref $ E.Computed computed
+                computed -> return ()
         Nothing -> return ()
 
 isTrue = (== E.Bool True)
