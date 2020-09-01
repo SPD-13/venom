@@ -3,19 +3,26 @@ module Lexer where
 import Data.List (genericLength)
 import Data.Char
 
-import Token
+import Error
 import Operator
+import Position
+import Token
 
 data State = State
     { currentLine :: Integer
     , currentColumn :: Integer
     , tokens :: [Token]
+    , errors :: [Error]
     }
 
-lex :: String -> [Token]
+lex :: String -> Either [Error] [Token]
 lex input =
-    let initialState = State 1 1 []
-    in reverse . tokens $ lexerStep initialState input
+    let initialState = State 1 1 [] []
+        finalState = lexerStep initialState input
+    in if null (errors finalState) then
+        Right $ reverse $ tokens finalState
+    else
+        Left $ errors finalState
 
 lexerStep :: State -> String -> State
 lexerStep finalState "" = finalState
@@ -46,7 +53,11 @@ lexerStep state input@(char:rest) =
                         pc Union
                 ',' -> pc Comma
                 '.' -> pc Dot
-                '/' -> if peek rest == "=" then pdc $ Operator Inequality else (state, "")
+                '/' ->
+                    if peek rest == "=" then
+                        pdc $ Operator Inequality
+                    else
+                        (state { errors = Error "Unexpected character '/'" (getPosition state) : errors state }, "")
                 '+' -> pc $ Operator Plus
                 '-' -> pc $ Operator Minus
                 '*' -> pc $ Operator Times
@@ -183,8 +194,8 @@ removeWhitespace (state, input) =
             , rest
             )
 
-getPosition :: State -> TokenPosition
-getPosition state = TokenPosition (currentLine state) (currentColumn state)
+getPosition :: State -> Position
+getPosition state = Position (currentLine state) (currentColumn state)
 
 newLine :: State -> State
 newLine state = state { currentLine = currentLine state + 1, currentColumn = 1 }

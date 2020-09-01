@@ -1,10 +1,11 @@
 module Token where
 
 import Operator
+import Position
 
 data Token = Token
     { tokenType :: TokenType
-    , pos :: TokenPosition
+    , position :: Position
     } deriving Show
 
 data TokenType
@@ -37,11 +38,6 @@ data TokenType
     | DataType String -- DataType
     | Identifier String -- value
     deriving (Show, Eq)
-
-data TokenPosition = TokenPosition
-    { line :: Integer
-    , column :: Integer
-    } deriving Show
 
 matchKeyword :: String -> TokenType
 matchKeyword text = case text of

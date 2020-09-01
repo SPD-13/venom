@@ -1,10 +1,9 @@
 module TypeChecker where
 
 import AST
+import Error
 import Operator
 import Token
-
-data TypeError = TypeError String TokenPosition
 
 typeCheck :: AST -> AST
 typeCheck (Bindings bindings) = Bindings $ checkBindings bindings
@@ -27,7 +26,7 @@ infer expression = case expression of
         _ -> TUndefined
     _ -> TUndefined
 
-check :: Expression -> ExpressionType -> Maybe TypeError
+check :: Expression -> ExpressionType -> Maybe Error
 check expression expectedType =
     if infer expression == expectedType then
         Nothing
