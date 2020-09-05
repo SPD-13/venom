@@ -22,7 +22,7 @@ lex input =
     in if null (errors finalState) then
         Right $ reverse $ tokens finalState
     else
-        Left $ errors finalState
+        Left $ reverse $ errors finalState
 
 lexerStep :: State -> String -> State
 lexerStep finalState "" = finalState
@@ -57,7 +57,7 @@ lexerStep state input@(char:rest) =
                     if peek rest == "=" then
                         pdc $ Operator Inequality
                     else
-                        (state { errors = Error "Unexpected character '/'" (getPosition state) : errors state }, "")
+                        (state { errors = Error "Unexpected character '/'" (Error.Position (getPosition state)) : errors state }, "")
                 '+' -> pc $ Operator Plus
                 '-' -> pc $ Operator Minus
                 '*' -> pc $ Operator Times
@@ -195,7 +195,7 @@ removeWhitespace (state, input) =
             )
 
 getPosition :: State -> Position
-getPosition state = Position (currentLine state) (currentColumn state)
+getPosition state = Position.Position (currentLine state) (currentColumn state)
 
 newLine :: State -> State
 newLine state = state { currentLine = currentLine state + 1, currentColumn = 1 }

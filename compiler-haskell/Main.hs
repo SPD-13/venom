@@ -15,14 +15,16 @@ main = do
         Right tokens -> do
             --putStrLn "\n--- Lexer output ---\n"
             --mapM_ print tokens
-            let ast = Parser.parse tokens
-            --putStrLn "\n--- Parser output ---\n"
-            --print ast
-            let resolvedAST = Resolver.resolve ast
-            let typeCheckedAST = TypeChecker.typeCheck resolvedAST
-            --putStrLn "\n--- Type checker output ---\n"
-            --print typeCheckedAST
-            let result = Interpreter.interpret typeCheckedAST
-            putStrLn "\n--- Interpreter output ---\n"
-            putStrLn result
-            putStrLn ""
+            case Parser.parse tokens of
+                Left errors -> putStr $ printErrors contents errors
+                Right ast -> do
+                    --putStrLn "\n--- Parser output ---\n"
+                    --print ast
+                    let resolvedAST = Resolver.resolve ast
+                    let typeCheckedAST = TypeChecker.typeCheck resolvedAST
+                    --putStrLn "\n--- Type checker output ---\n"
+                    --print typeCheckedAST
+                    let result = Interpreter.interpret typeCheckedAST
+                    putStrLn "\n--- Interpreter output ---\n"
+                    putStrLn result
+                    putStrLn ""

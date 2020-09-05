@@ -1,80 +1,128 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Parser where
 
-import Token
+import Control.Monad.State.Lazy
+
 import AST
+import Error
 import Operator
+import Token
 
-parse :: [Token] -> AST
+data ParserState = ParserState
+    { remainingTokens :: [Token]
+    , errors :: [Error]
+    }
+
+parse :: [Token] -> Either [Error] AST
 parse tokens =
-    let (ast, rest) = mapFirst Bindings $ bindings tokens
-    in
-        if null rest then
-            ast
-        else
-            ast -- Error
+    let initialState = ParserState tokens []
+        (ast, finalState) = runState parseTokens initialState
+    in if null (errors finalState) then
+        Right ast
+    else
+        Left $ reverse $ errors finalState
 
-bindings :: [Token] -> ([Binding], [Token])
-bindings [] = ([], [])
-bindings tokens@(head:rest) =
-    case tokenType head of
-        (Token.Identifier identifier) ->
-            case peek rest of
-                [LeftParen] -> function identifier $ tail rest
-                [Equals] -> constant identifier $ tail rest
-                _ -> ([], [])
-        _ -> ([], tokens)
+advance :: Int -> State ParserState ()
+advance n = modify $ \s -> s { remainingTokens = drop n (remainingTokens s) }
 
-function identifier tokens =
-    let (params, rest) = parameters tokens
-    in case peek rest of
-        [Equals] ->
-            let (expr, newTokens) = expression $ tail rest
-                binding = Binding identifier (Literal (Lambda [] (Function params expr))) TUndefined
-            in mapFirst (binding:) $ bindings newTokens
-        _ -> ([], [])
+peek :: State ParserState [TokenType]
+peek = fmap (map tokenType . take 1) $ gets remainingTokens
 
-parameters :: [Token] -> ([String], [Token])
-parameters tokens =
-    case peek tokens of
-        [RightParen] -> ([], tail tokens)
-        _ -> recurseParameters tokens
+consume :: State ParserState ([TokenType], [Token])
+consume = do
+    next <- fmap (take 1) $ gets remainingTokens
+    advance 1
+    return (map tokenType next, next)
 
-recurseParameters tokens =
-    let (head, rest) = consume tokens
-    in case head of
-        [Token.Identifier identifier] ->
-            case peek rest of
-                [Comma] ->
-                    let (params, newRest) = recurseParameters $ tail rest
-                    in (identifier : params, newRest)
-                [RightParen] -> ([identifier], tail rest)
-                _ -> ([], [])
-        _ -> ([], [])
+reportError :: String -> [Token] -> State ParserState ()
+reportError message maybeToken =
+    let pos = case maybeToken of
+            [] -> EOF
+            (token:_) -> Position $ Token.position token
+        err = Error message pos
+    in modify $ \s -> s { remainingTokens = [], errors = err : errors s }
 
-constant identifier tokens =
-    let (expr, newTokens) = expression tokens
-        binding = Binding identifier expr TUndefined
-    in mapFirst (binding:) $ bindings newTokens
+parseTokens :: State ParserState AST
+parseTokens = do
+    declarations <- bindings
+    tokens <- gets remainingTokens
+    unless (null tokens) $ reportError "Unexpected token after top-level declarations" tokens
+    return $ Bindings declarations
 
-expression :: [Token] -> (Expression, [Token])
-expression tokens = logicOr tokens
+bindings :: State ParserState [Binding]
+bindings = peek >>= \case
+    [Token.Identifier identifier] -> do
+        advance 1
+        (next, token) <- consume
+        case next of
+            [Equals] -> constant identifier
+            [LeftParen] -> function identifier
+            _ -> do
+                reportError "Expecting '=' or '(' after identifier in binding" token
+                return []
+    _ -> return []
 
-mapFirst :: (a -> b) -> (a, c) -> (b, c)
-mapFirst f (a, b) = (f a, b)
+function :: String -> State ParserState [Binding]
+function identifier = do
+    params <- parameters
+    (next, token) <- consume
+    case next of
+        [Equals] -> do
+            expr <- expression
+            let binding = Binding identifier (Literal (Lambda [] (Function params expr))) TUndefined
+            otherBindings <- bindings
+            return $ binding : otherBindings
+        _ -> do
+            reportError "Expecting '=' after parameters in function definition" token
+            return []
 
-makeBinaryParser :: ([Token] -> (Expression, [Token])) -> [Operator] -> ([Token] -> (Expression, [Token]))
+parameters :: State ParserState [String]
+parameters = peek >>= \case
+    [RightParen] -> do
+        advance 1
+        return []
+    _ -> recurseParameters
+
+recurseParameters :: State ParserState [String]
+recurseParameters = do
+    (next, token) <- consume
+    case next of
+        [Token.Identifier identifier] -> do
+            (next, token) <- consume
+            case next of
+                [Comma] -> do
+                    params <- recurseParameters
+                    return $ identifier : params
+                [RightParen] -> return [identifier]
+                _ -> do
+                    reportError "Expecting ',' or ')' after parameter in function definition" token
+                    return []
+        _ -> do
+            reportError "Expecting identifier in parameter list" token
+            return []
+
+constant :: String -> State ParserState [Binding]
+constant identifier = do
+    expr <- expression
+    let binding = Binding identifier expr TUndefined
+    otherBindings <- bindings
+    return $ binding : otherBindings
+
+expression :: State ParserState Expression
+expression = logicOr
+
+makeBinaryParser :: State ParserState Expression -> [Operator] -> State ParserState Expression
 makeBinaryParser operandParser operators =
-    let
-        recurse result@(left, rest) =
-            case peek rest of
-                [Operator op] ->
-                    if op `elem` operators then
-                        let (right, newRest) = operandParser $ tail rest
-                        in recurse (Binary left op right, newRest)
-                    else
-                        result
-                _ -> result
-    in recurse . operandParser
+    let recurse left = peek >>= \case
+            [Operator op] | op `elem` operators -> do
+                advance 1
+                right <- operandParser
+                recurse $ Binary left op right
+            _ -> return left
+    in do
+        left <- operandParser
+        recurse left
 
 logicOr = makeBinaryParser logicAnd [Or]
 logicAnd = makeBinaryParser equality [And]
@@ -82,73 +130,77 @@ equality = makeBinaryParser addition [Equality, Inequality]
 addition = makeBinaryParser multiplication [Plus, Minus]
 multiplication = makeBinaryParser call [Times]
 
-call :: [Token] -> (Expression, [Token])
-call = recurseCall . primary
+call :: State ParserState Expression
+call = do
+    callee <- primary
+    recurseCall callee
 
-recurseCall :: (Expression, [Token]) -> (Expression, [Token])
-recurseCall result@(callee, tokens) =
-    case peek tokens of
-        [LeftParen] ->
-            let (args, rest) = arguments $ tail tokens
-                currentCall = Call callee args
-            in recurseCall (currentCall, rest)
-        _ -> result
+recurseCall :: Expression -> State ParserState Expression
+recurseCall callee = peek >>= \case
+    [LeftParen] -> do
+        advance 1
+        args <- arguments
+        recurseCall $ Call callee args
+    _ -> return callee
 
-arguments :: [Token] -> ([Expression], [Token])
-arguments tokens =
-    case peek tokens of
-        [RightParen] -> ([], tail tokens)
-        _ -> recurseArguments tokens
+arguments :: State ParserState [Expression]
+arguments = peek >>= \case
+    [RightParen] -> do
+        advance 1
+        return []
+    _ -> recurseArguments
 
-recurseArguments :: [Token] -> ([Expression], [Token])
-recurseArguments tokens =
-    let (expr, rest) = expression tokens
-    in case peek rest of
-        [Comma] ->
-            let (args, newRest) = recurseArguments $ tail rest
-            in (expr : args, newRest)
-        [RightParen] -> ([expr], tail rest)
-        _ -> ([], [])
+recurseArguments :: State ParserState [Expression]
+recurseArguments = do
+    expr <- expression
+    (next, token) <- consume
+    case next of
+        [Comma] -> do
+            args <- recurseArguments
+            return $ expr : args
+        [RightParen] -> return [expr]
+        _ -> do
+            reportError "Expecting ',' or ')' after expression in argument list" token
+            return []
 
-primary :: [Token] -> (Expression, [Token])
-primary [] = (None, [])
-primary (head:rest) =
-    case tokenType head of
-        Token.Let ->
-            let (local, newRest) = bindings rest
-            in
-                if peek newRest == [In] then
-                    let (expr, finalRest) = expression $ tail newRest
-                    in (AST.Let local expr, finalRest)
-                else
-                    (None, [])
-        Token.If ->
-            let (condition, newRest) = expression rest
-            in
-                if peek newRest == [Then] then
-                    let (trueValue, trueRest) = expression $ tail newRest
-                    in
-                        if peek trueRest == [Else] then
-                            let (falseValue, falseRest) = expression $ tail trueRest
-                            in (AST.If condition trueValue falseValue, falseRest)
-                        else
-                            (None, [])
-                else
-                    (None, [])
-        LeftParen ->
-            let (expr, newRest) = expression rest
-            in
-                if peek newRest == [RightParen] then
-                    (expr, tail newRest)
-                else
-                    (None, [])
-        (Token.Integer integer) -> (Literal $ AST.Integer integer, rest)
-        (Token.Identifier identifier) -> (AST.Identifier identifier, rest)
-        _ -> (None, [])
-
-peek :: [Token] -> [TokenType]
-peek = map tokenType . take 1
-
-consume :: [Token] -> ([TokenType], [Token])
-consume [] = ([], [])
-consume (head:rest) = ([tokenType head], rest)
+primary :: State ParserState Expression
+primary = do
+    (next, token) <- consume
+    case next of
+        [Token.Let] -> do
+            local <- bindings
+            (next, token) <- consume
+            if next == [In] then do
+                expr <- expression
+                return $ AST.Let local expr
+            else do
+                reportError "Expecting 'in' after bindings in 'let' expression" token
+                return None
+        [Token.If] -> do
+            condition <- expression
+            (next, token) <- consume
+            if next == [Then] then do
+                trueValue <- expression
+                (next, token) <- consume
+                if next == [Else] then do
+                    falseValue <- expression
+                    return $ AST.If condition trueValue falseValue
+                else do
+                    reportError "Expecting 'else' after 'then' expression in 'if' expression" token
+                    return None
+            else do
+                reportError "Expecting 'then' after condition in 'if' expression" token
+                return None
+        [LeftParen] -> do
+            expr <- expression
+            (next, token) <- consume
+            if next == [RightParen] then
+                return expr
+            else do
+                reportError "Expecting closing ')' after expression" token
+                return None
+        [Token.Integer integer] -> return $ Literal $ AST.Integer integer
+        [Token.Identifier identifier] -> return $ AST.Identifier identifier
+        _ -> do
+            reportError "Unexpected token" token
+            return None
