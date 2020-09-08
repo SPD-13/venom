@@ -88,7 +88,7 @@ interpretExpression evaluating env expression =
                     closureEnv <- E.new
                     sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
                     return $ E.Closure closureEnv function
-        Identifier identifier -> interpretIdentifier evaluating env identifier
+        Identifier identifier _ -> interpretIdentifier evaluating env identifier
 
 resolveFreeVariable :: [String] -> E.Env s -> E.Env s -> String -> ST s ()
 resolveFreeVariable evaluating currentEnv closureEnv identifier = do

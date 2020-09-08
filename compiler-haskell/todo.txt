@@ -1,0 +1,2 @@
+Change return type of 'consume' in parser to 'Maybe Token'
+Finish error messages in lexer

@@ -20,11 +20,12 @@ main = do
                 Right ast -> do
                     --putStrLn "\n--- Parser output ---\n"
                     --print ast
-                    let resolvedAST = Resolver.resolve ast
-                    let typeCheckedAST = TypeChecker.typeCheck resolvedAST
-                    --putStrLn "\n--- Type checker output ---\n"
-                    --print typeCheckedAST
-                    let result = Interpreter.interpret typeCheckedAST
-                    putStrLn "\n--- Interpreter output ---\n"
-                    putStrLn result
-                    putStrLn ""
+                    case Resolver.resolve ast of
+                        Left errors -> putStr $ printErrors contents errors
+                        Right resolvedAST -> do
+                            let typeCheckedAST = TypeChecker.typeCheck resolvedAST
+                            --putStrLn "\n--- Type checker output ---\n"
+                            --print typeCheckedAST
+                            let result = Interpreter.interpret typeCheckedAST
+                            putStrLn "\n--- Interpreter output ---\n"
+                            putStrLn result

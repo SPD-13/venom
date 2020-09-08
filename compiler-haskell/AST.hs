@@ -1,6 +1,7 @@
 module AST where
 
 import Operator
+import Position
 
 data AST
     = Bindings [Binding]
@@ -22,7 +23,7 @@ data Expression
     | Binary Expression Operator Expression
     | Call Expression [Expression]
     | Literal Literal
-    | Identifier String
+    | Identifier String Position
     | None
     deriving (Eq, Show)
 
