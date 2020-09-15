@@ -22,7 +22,7 @@ interpretBindings bindings = do
     sequence_ $ map (E.set env . getEnvValue) bindings
     let identifiers = map getIdentifier bindings
     values <- sequence $ map (interpretIdentifier [] env) identifiers
-    return $ intercalate "\n" $ map (\(i, v) -> i ++ " = " ++ show v) $ zip identifiers values
+    return $ intercalate "\n" $ map (\(Binding i _ t, v) -> i ++ " : " ++ show t ++ " = " ++ show v) $ zip bindings values
 
 interpretIdentifier :: [String] -> E.Env s -> String -> ST s (E.Computed s)
 interpretIdentifier evaluating env identifier = do

@@ -59,3 +59,4 @@ Find a clean pattern for AST traversal with an accumulator
 Lazy evaluation of function arguments
 Extending union types with new values (e.g. adding null value) for cleaner pattern matching (see parser e.g. '[Equals]')
 Shadowing prelude / standard library?
+Visualize state + previous messages/states in browser console

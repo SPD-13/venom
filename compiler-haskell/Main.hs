@@ -23,9 +23,11 @@ main = do
                     case Resolver.resolve ast of
                         Left errors -> putStr $ printErrors contents errors
                         Right resolvedAST -> do
-                            let typeCheckedAST = TypeChecker.typeCheck resolvedAST
-                            --putStrLn "\n--- Type checker output ---\n"
-                            --print typeCheckedAST
-                            let result = Interpreter.interpret typeCheckedAST
-                            putStrLn "\n--- Interpreter output ---\n"
-                            putStrLn result
+                            case TypeChecker.typeCheck resolvedAST of
+                                Left errors -> putStr $ printErrors contents errors
+                                Right typeCheckedAST -> do
+                                    --putStrLn "\n--- Type checker output ---\n"
+                                    --print typeCheckedAST
+                                    let result = Interpreter.interpret typeCheckedAST
+                                    putStrLn "\n--- Interpreter output ---\n"
+                                    putStrLn result
