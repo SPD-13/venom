@@ -70,8 +70,17 @@ inferExpression env errors expression =
             typedBindings <- sequence $ map (getBinding env) $ map getIdentifier bindings
             (typedExpr, exprType) <- ie expr
             return (Let typedBindings typedExpr, exprType)
+        If condition true false -> do
+            (typedCondition, conditionType) <- ie condition
+            when (conditionType /= TBool) $ err $ Error "Condition of 'if' must be a boolean" EOF
+            (typedTrue, trueType) <- ie true
+            (typedFalse, falseType) <- ie false
+            when (trueType /= falseType) $ err $ Error "Both branches of 'if' must have the same type" EOF
+            return (If typedCondition typedTrue typedFalse, trueType)
         Literal literal -> case literal of
             AST.Integer _ -> return (expression, TInteger)
+            AST.Char _ -> return (expression, TChar)
+            AST.String _ -> return (expression, TString)
             _ -> return unimplemented
         Binary left op right -> do
             (typedLeft, leftType) <- ie left
@@ -82,4 +91,21 @@ inferExpression env errors expression =
                     when (rightType /= TInteger) $ err $ Error "Second argument of '+' must be an integer" EOF
                     return (Binary typedLeft op typedRight, TInteger)
                 _ -> return unimplemented
+        Call callee arguments -> do
+            (typedCallee, calleeType) <- ie callee
+            case calleeType of
+                TFunction parameterTypes functionType -> do
+                    typedArguments <- sequence $ map ie arguments
+                    checkArguments errors (map snd typedArguments) parameterTypes
+                    return (Call typedCallee (map fst typedArguments), functionType)
+                _ -> do
+                    err $ Error "Callee must be a function" EOF
+                    return (Call typedCallee arguments, TUndefined)
+        Identifier identifier _ -> do
+            identifierType <- inferIdentifier env errors identifier
+            return (expression, identifierType)
         _ -> return unimplemented
+
+checkArguments :: STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
+checkArguments errors arguments parameters =
+    return ()

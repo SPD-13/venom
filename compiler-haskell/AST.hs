@@ -13,6 +13,8 @@ data Binding
 data ExpressionType
     = TInteger
     | TBool
+    | TChar
+    | TString
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving (Eq, Show)
@@ -30,6 +32,8 @@ data Expression
 data Literal
     = Integer Integer
     | Bool Bool
+    | Char Char
+    | String String
     | Lambda [String] Function
     deriving (Eq, Show)
 

@@ -200,6 +200,8 @@ primary = do
                 reportError "Expecting closing ')' after expression" token
                 return None
         [Token.Integer integer] -> return $ Literal $ AST.Integer integer
+        [Token.Char char] -> return $ Literal $ AST.Char char
+        [Token.String string] -> return $ Literal $ AST.String string
         [Token.Identifier identifier] -> return $ AST.Identifier identifier $ Token.position $ head token
         _ -> do
             reportError "Unexpected token" token

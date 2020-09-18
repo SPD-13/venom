@@ -84,6 +84,8 @@ interpretExpression evaluating env expression =
             case literal of
                 Integer integer -> return $ E.Integer integer
                 Bool bool -> return $ E.Bool bool
+                Char char -> return $ E.Char char
+                String string -> return $ E.String string
                 Lambda freeVars function -> do
                     closureEnv <- E.new
                     sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars

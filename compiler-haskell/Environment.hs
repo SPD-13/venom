@@ -16,12 +16,16 @@ newtype Env s = Env (HashTable s String (STRef s (Value s)))
 data Computed s
     = Integer Integer
     | Bool Bool
+    | Char Char
+    | String String
     | Closure (Env s) Function
     | RuntimeError
 
 instance Show (Computed s) where
     show (Integer a) = show a
     show (Bool a) = show a
+    show (Char a) = show a
+    show (String a) = show a
     show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
     show RuntimeError = "Runtime error"
 
