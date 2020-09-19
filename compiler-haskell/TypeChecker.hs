@@ -107,5 +107,13 @@ inferExpression env errors expression =
         _ -> return unimplemented
 
 checkArguments :: STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
-checkArguments errors arguments parameters =
-    return ()
+checkArguments errors arguments parameters = do
+    let err = reportError errors
+        lenArgs = length arguments
+        lenParams = length parameters
+    when (lenArgs /= lenParams) $ err $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
+    sequence_ $ map (checkArgument errors) $ zip [1..] $ zip arguments parameters
+
+checkArgument :: STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
+checkArgument errors (index, (argType, paramType)) =
+    when (argType /= paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF

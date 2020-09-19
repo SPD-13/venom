@@ -1,5 +1,7 @@
 module AST where
 
+import Data.List (intercalate)
+
 import Operator
 import Position
 
@@ -17,7 +19,16 @@ data ExpressionType
     | TString
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show ExpressionType where
+    show eType = case eType of
+        TInteger -> "Integer"
+        TBool -> "Bool"
+        TChar -> "Char"
+        TString -> "String"
+        TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
+        TUndefined -> "Undefined"
 
 data Expression
     = Let [Binding] Expression
