@@ -67,8 +67,9 @@ inferExpression env errors expression =
         Let bindings expr -> do
             sequence_ $ map (set env . getEnvValue) bindings
             sequence_ $ map (inferIdentifier env errors) $ map getIdentifier bindings
-            typedBindings <- sequence $ map (getBinding env) $ map getIdentifier bindings
+            typedBindings <- sequence $ map (getBinding env . getIdentifier) bindings
             (typedExpr, exprType) <- ie expr
+            sequence_ $ map (delete env . getIdentifier) bindings
             return (Let typedBindings typedExpr, exprType)
         If condition true false -> do
             (typedCondition, conditionType) <- ie condition
@@ -79,9 +80,16 @@ inferExpression env errors expression =
             return (If typedCondition typedTrue typedFalse, trueType)
         Literal literal -> case literal of
             AST.Integer _ -> return (expression, TInteger)
+            AST.Bool _ -> return (expression, TBool)
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
-            _ -> return unimplemented
+            Lambda freeVars (Function params returnType expr) -> do
+                let paramToEnv (identifier, annotation) = (identifier, Typed None annotation)
+                sequence_ $ map (set env . paramToEnv) params
+                (typedExpr, exprType) <- ie expr
+                when (returnType /= exprType) $ err $ Error "Function body does not match the annotated return type" EOF
+                sequence_ $ map (delete env . fst) params
+                return (Literal (Lambda freeVars (Function params returnType typedExpr)), TFunction (map snd params) returnType)
         Binary left op right -> do
             (typedLeft, leftType) <- ie left
             (typedRight, rightType) <- ie right
@@ -104,7 +112,7 @@ inferExpression env errors expression =
         Identifier identifier _ -> do
             identifierType <- inferIdentifier env errors identifier
             return (expression, identifierType)
-        _ -> return unimplemented
+        None -> return (None, TUndefined)
 
 checkArguments :: STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
 checkArguments errors arguments parameters = do
