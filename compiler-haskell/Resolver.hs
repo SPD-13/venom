@@ -53,11 +53,11 @@ resolveExpression expression = case expression of
             (resolvedArgs, argsVars) = unzip $ map resolveExpression args
         in (Call resolvedCallee resolvedArgs, vars ++ (concat argsVars))
     Literal literal -> case literal of
-        Lambda _ (Function params expr) ->
+        Lambda _ (Function params returnType expr) ->
             let (resolvedExpression, vars) = resolveExpression expr
-                freeVars = filter ((`notElem` params) . name) vars
+                freeVars = filter ((`notElem` (map fst params)) . name) vars
                 freeNames = map name freeVars
-            in (Literal (Lambda freeNames (Function params resolvedExpression)), freeVars)
+            in (Literal (Lambda freeNames (Function params returnType resolvedExpression)), freeVars)
         _ -> (expression, [])
     Identifier identifier position -> (expression, [Variable identifier position])
     None -> (None, [])

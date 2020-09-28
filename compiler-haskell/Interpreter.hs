@@ -74,10 +74,10 @@ interpretExpression evaluating env expression =
         Call callee arguments -> do
             concreteCallee <- eval env callee
             case concreteCallee of
-                E.Closure closureEnv (Function params expr) -> do
+                E.Closure closureEnv (Function params _ expr) -> do
                     concreteArguments <- sequence $ map (eval env) arguments
                     functionEnv <- E.copy closureEnv
-                    sequence_ $ map (E.set functionEnv) $ zip params $ map E.Computed concreteArguments
+                    sequence_ $ map (E.set functionEnv) $ zip (map fst params) $ map E.Computed concreteArguments
                     interpretExpression [] functionEnv expr
                 _ -> return E.RuntimeError
         Literal literal ->

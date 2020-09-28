@@ -60,3 +60,7 @@ Lazy evaluation of function arguments
 Extending union types with new values (e.g. adding null value) for cleaner pattern matching (see parser e.g. '[Equals]')
 Shadowing prelude / standard library?
 Visualize state + previous messages/states in browser console
+Consider all uses of a variable (even declaration) to be constraints then solve at the end of the block
+Evaluate Elm VS Reflex VS Halogen VS CycleJS (group state dependencies instead of event effects)
+Check inference of record types in Elm
+Study OCaml syntax for partial application

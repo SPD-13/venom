@@ -22,7 +22,7 @@ data Computed s
 instance Show (Computed s) where
     show (Integer a) = show a
     show (Bool a) = show a
-    show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
+    show (Closure _ (Function params _ _)) = "Closure(" ++ intercalate ", " (map fst params) ++ ")"
     show RuntimeError = "Runtime error"
 
 instance Eq (Computed s) where

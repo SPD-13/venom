@@ -68,35 +68,59 @@ function identifier = do
     params <- parameters
     (next, token) <- consume
     case next of
-        [Equals] -> do
-            expr <- expression
-            let binding = Binding identifier (Literal (Lambda [] (Function params expr))) TUndefined
-            otherBindings <- bindings
-            return $ binding : otherBindings
+        [Colon] -> do
+            (next, token) <- consume
+            case next of
+                [BaseType annotation] -> do
+                    (next, token) <- consume
+                    case next of
+                        [Equals] -> do
+                            expr <- expression
+                            let binding = Binding identifier (Literal (Lambda [] (Function params annotation expr))) TUndefined
+                            otherBindings <- bindings
+                            return $ binding : otherBindings
+                        _ -> do
+                            reportError "Expecting '=' after return type in function definition" token
+                            return []
+                _ -> do
+                    reportError "Invalid type annotation" token
+                    return []
         _ -> do
-            reportError "Expecting '=' after parameters in function definition" token
+            reportError "Expecting annotation of return type after parameters in function definition" token
             return []
 
-parameters :: State ParserState [String]
+parameters :: State ParserState [(String, ExpressionType)]
 parameters = peek >>= \case
     [RightParen] -> do
         advance 1
         return []
     _ -> recurseParameters
 
-recurseParameters :: State ParserState [String]
+recurseParameters :: State ParserState [(String, ExpressionType)]
 recurseParameters = do
     (next, token) <- consume
     case next of
         [Token.Identifier identifier] -> do
             (next, token) <- consume
             case next of
-                [Comma] -> do
-                    params <- recurseParameters
-                    return $ identifier : params
-                [RightParen] -> return [identifier]
+                [Colon] -> do
+                    (next, token) <- consume
+                    case next of
+                        [BaseType annotation] -> do
+                            (next, token) <- consume
+                            case next of
+                                [Comma] -> do
+                                    params <- recurseParameters
+                                    return $ (identifier, annotation) : params
+                                [RightParen] -> return [(identifier, annotation)]
+                                _ -> do
+                                    reportError "Expecting ',' or ')' after parameter in function definition" token
+                                    return []
+                        _ -> do
+                            reportError "Invalid type annotation" token
+                            return []
                 _ -> do
-                    reportError "Expecting ',' or ')' after parameter in function definition" token
+                    reportError "Function parameters must be followed by a type annotation" token
                     return []
         _ -> do
             reportError "Expecting identifier in parameter list" token

@@ -53,6 +53,7 @@ lexerStep state input@(char:rest) =
                         pc Union
                 ',' -> pc Comma
                 '.' -> pc Dot
+                ':' -> pc Colon
                 '/' ->
                     if peek rest == "=" then
                         pdc $ Operator Inequality
@@ -113,7 +114,8 @@ parseIdentifier state input =
 
 parseDataType state input =
     let (word, rest) = span isAlphaNum input
-        token = Token (DataType word) (getPosition state)
+        tokenType = matchType word
+        token = Token tokenType (getPosition state)
     in
         ( state { currentColumn = currentColumn state + genericLength word, tokens = token : tokens state }
         , rest

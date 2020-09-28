@@ -48,7 +48,7 @@ data Literal
     | Lambda [String] Function
     deriving (Eq, Show)
 
-data Function = Function [String] Expression deriving (Eq, Show)
+data Function = Function [(String, ExpressionType)] ExpressionType Expression deriving (Eq, Show)
 
 unlines' = init . unlines
 

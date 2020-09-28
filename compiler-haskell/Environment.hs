@@ -26,7 +26,7 @@ instance Show (Computed s) where
     show (Bool a) = show a
     show (Char a) = show a
     show (String a) = show a
-    show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
+    show (Closure _ (Function params _ _)) = "Closure(" ++ intercalate ", " (map fst params) ++ ")"
     show RuntimeError = "Runtime error"
 
 instance Eq (Computed s) where

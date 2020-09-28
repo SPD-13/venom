@@ -1,5 +1,6 @@
 module Token where
 
+import AST (ExpressionType(..))
 import Operator
 import Position
 
@@ -28,6 +29,7 @@ data TokenType
     | Union -- |
     | Comma -- ,
     | Dot -- .
+    | Colon -- :
     -- Operators
     | Operator Operator
     -- Literals
@@ -36,6 +38,7 @@ data TokenType
     | Integer Integer -- 55
     -- Symbols
     | DataType String -- DataType
+    | BaseType ExpressionType -- String
     | Identifier String -- value
     deriving (Show, Eq)
 
@@ -48,3 +51,11 @@ matchKeyword text = case text of
     "let" -> Let
     "in" -> In
     _ -> Identifier text
+
+matchType :: String -> TokenType
+matchType text = case text of
+    "Int" -> BaseType TInteger
+    "Bool" -> BaseType TBool
+    "Char" -> BaseType TChar
+    "String" -> BaseType TString
+    _ -> DataType text
