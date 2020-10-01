@@ -23,7 +23,7 @@ data ExpressionType
 
 instance Show ExpressionType where
     show eType = case eType of
-        TInteger -> "Integer"
+        TInteger -> "Int"
         TBool -> "Bool"
         TChar -> "Char"
         TString -> "String"

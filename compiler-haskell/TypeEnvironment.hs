@@ -1,4 +1,4 @@
-module TypeEnvironment (Env, new, copy, set, setRef, get, delete, Computed(..), Value(..)) where
+module TypeEnvironment (Env, new, copy, set, setRef, get, delete, Value(..)) where
 
 import Data.List (intercalate)
 import Control.Monad.ST
@@ -12,23 +12,6 @@ import AST (Expression, ExpressionType, Function(..))
 type HashTable s k v = B.HashTable s k v
 
 newtype Env s = Env (HashTable s String (STRef s Value))
-
-data Computed s
-    = Integer Integer
-    | Bool Bool
-    | Closure (Env s) Function
-    | RuntimeError
-
-instance Show (Computed s) where
-    show (Integer a) = show a
-    show (Bool a) = show a
-    show (Closure _ (Function params _ _)) = "Closure(" ++ intercalate ", " (map fst params) ++ ")"
-    show RuntimeError = "Runtime error"
-
-instance Eq (Computed s) where
-    (Integer a) == (Integer b) = a == b
-    (Bool a) == (Bool b) = a == b
-    _ == _ = False
 
 data Value
     = Expression Expression (Maybe ExpressionType)

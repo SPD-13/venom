@@ -3,6 +3,7 @@ module TypeChecker where
 import Control.Monad
 import Control.Monad.ST
 import Data.STRef
+import Data.Maybe
 
 import AST
 import Error
@@ -17,10 +18,9 @@ checkBindings (Bindings bindings) = do
     env <- new
     errors <- newSTRef []
     sequence_ $ map (set env . getEnvValue) bindings
-    sequence_ $ map (checkIdentifier env errors . getIdentifier) bindings
+    typedBindings <- sequence $ map (checkIdentifier env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
-    if null finalErrors then do
-        typedBindings <- sequence $ map (getBinding env . getIdentifier) bindings
+    if null finalErrors then
         return $ Right $ Bindings typedBindings
     else
         return $ Left finalErrors
@@ -41,22 +41,21 @@ inferIdentifier env errors identifier = do
                 Typed _ exprType -> return exprType
         Nothing -> return dummy
 
-checkIdentifier :: Env s -> STRef s [Error] -> String -> ST s ()
+checkIdentifier :: Env s -> STRef s [Error] -> String -> ST s Binding
 checkIdentifier env errors identifier = do
     val <- get identifier env
-    let dummy = ()
+    let dummy = Binding "" None TUndefined
     case val of
         Just ref -> do
             value <- readSTRef ref
             case value of
                 Expression expr maybeAnnotation -> do
                     (typedExpr, exprType) <- inferExpression env errors expr
-                    case maybeAnnotation of
-                        Nothing -> writeSTRef ref $ Typed typedExpr exprType
-                        Just annotation -> do
-                            when (annotation /= exprType) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
-                            writeSTRef ref $ Typed typedExpr annotation
-                Typed _ _ -> return ()
+                    let annotation = fromMaybe exprType maybeAnnotation
+                    when (annotation /= exprType) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
+                    writeSTRef ref $ Typed typedExpr annotation
+                    return $ Binding identifier typedExpr annotation
+                Typed expr eType -> return $ Binding identifier expr eType
         Nothing -> return dummy
 
 getEnvValue :: Binding -> (String, Value)
@@ -66,18 +65,6 @@ getEnvValue (Binding identifier value _) = case value of
 
 getIdentifier :: Binding -> String
 getIdentifier (Binding identifier _ _) = identifier
-
-getBinding :: Env s -> String -> ST s Binding
-getBinding env identifier = do
-    val <- get identifier env
-    let dummy = Binding "" None TUndefined
-    case val of
-        Just ref -> do
-            value <- readSTRef ref
-            case value of
-                Typed expr eType -> return $ Binding identifier expr eType
-                Expression _ _ -> return dummy
-        Nothing -> return dummy
 
 reportError :: STRef s [Error] -> Error -> ST s ()
 reportError errors error = modifySTRef errors (error:)
@@ -90,8 +77,7 @@ inferExpression env errors expression =
     in case expression of
         Let bindings expr -> do
             sequence_ $ map (set env . getEnvValue) bindings
-            sequence_ $ map (checkIdentifier env errors . getIdentifier) bindings
-            typedBindings <- sequence $ map (getBinding env . getIdentifier) bindings
+            typedBindings <- sequence $ map (checkIdentifier env errors . getIdentifier) bindings
             (typedExpr, exprType) <- ie expr
             sequence_ $ map (delete env . getIdentifier) bindings
             return (Let typedBindings typedExpr, exprType)
