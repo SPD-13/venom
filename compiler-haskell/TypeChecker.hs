@@ -8,7 +8,7 @@ import Data.Maybe
 import AST
 import Error
 import Operator
-import TypeEnvironment
+import Environment
 
 typeCheck :: AST -> Either [Error] AST
 typeCheck ast = runST $ checkBindings ast
@@ -25,7 +25,7 @@ checkBindings (Bindings bindings) = do
     else
         return $ Left finalErrors
 
-inferIdentifier :: Env s -> STRef s [Error] -> String -> ST s ExpressionType
+inferIdentifier :: TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
 inferIdentifier env errors identifier = do
     val <- get identifier env
     let dummy = TUndefined
@@ -33,15 +33,15 @@ inferIdentifier env errors identifier = do
         Just ref -> do
             value <- readSTRef ref
             case value of
-                Expression expr Nothing -> do
+                Untyped expr Nothing -> do
                     (typedExpr, exprType) <- inferExpression env errors expr
                     writeSTRef ref $ Typed typedExpr exprType
                     return exprType
-                Expression _ (Just annotation) -> return annotation
+                Untyped _ (Just annotation) -> return annotation
                 Typed _ exprType -> return exprType
         Nothing -> return dummy
 
-checkIdentifier :: Env s -> STRef s [Error] -> String -> ST s Binding
+checkIdentifier :: TypeEnv s -> STRef s [Error] -> String -> ST s Binding
 checkIdentifier env errors identifier = do
     val <- get identifier env
     let dummy = Binding "" None TUndefined
@@ -49,7 +49,7 @@ checkIdentifier env errors identifier = do
         Just ref -> do
             value <- readSTRef ref
             case value of
-                Expression expr maybeAnnotation -> do
+                Untyped expr maybeAnnotation -> do
                     (typedExpr, exprType) <- inferExpression env errors expr
                     let annotation = fromMaybe exprType maybeAnnotation
                     when (annotation /= exprType) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
@@ -58,10 +58,10 @@ checkIdentifier env errors identifier = do
                 Typed expr eType -> return $ Binding identifier expr eType
         Nothing -> return dummy
 
-getEnvValue :: Binding -> (String, Value)
+getEnvValue :: Binding -> (String, TypeValue)
 getEnvValue (Binding identifier value _) = case value of
-    Literal (Lambda _ (Function params returnType _)) -> (identifier, Expression value (Just (TFunction (map snd params) returnType)))
-    _ -> (identifier, Expression value Nothing)
+    Literal (Lambda _ (Function params returnType _)) -> (identifier, Untyped value (Just (TFunction (map snd params) returnType)))
+    _ -> (identifier, Untyped value Nothing)
 
 getIdentifier :: Binding -> String
 getIdentifier (Binding identifier _ _) = identifier
@@ -69,7 +69,7 @@ getIdentifier (Binding identifier _ _) = identifier
 reportError :: STRef s [Error] -> Error -> ST s ()
 reportError errors error = modifySTRef errors (error:)
 
-inferExpression :: Env s -> STRef s [Error] -> Expression -> ST s (Expression, ExpressionType)
+inferExpression :: TypeEnv s -> STRef s [Error] -> Expression -> ST s (Expression, ExpressionType)
 inferExpression env errors expression =
     let ie = inferExpression env errors
         err = reportError errors
