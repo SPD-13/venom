@@ -91,6 +91,7 @@ interpretExpression evaluating env expression =
                     sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
                     return $ E.Closure closureEnv function
         Identifier identifier _ -> interpretIdentifier evaluating env identifier
+        None -> return E.RuntimeError
 
 resolveFreeVariable :: [String] -> E.Env s -> E.Env s -> String -> ST s ()
 resolveFreeVariable evaluating currentEnv closureEnv identifier = do

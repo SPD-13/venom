@@ -31,7 +31,7 @@ instance Eq (Computed s) where
     _ == _ = False
 
 data Value
-    = Expression Expression
+    = Expression Expression (Maybe ExpressionType)
     | Typed Expression ExpressionType
 
 new :: ST s (Env s)

@@ -17,10 +17,10 @@ checkBindings (Bindings bindings) = do
     env <- new
     errors <- newSTRef []
     sequence_ $ map (set env . getEnvValue) bindings
-    sequence_ $ map (inferIdentifier env errors) $ map getIdentifier bindings
+    sequence_ $ map (checkIdentifier env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
     if null finalErrors then do
-        typedBindings <- sequence $ map (getBinding env) $ map getIdentifier bindings
+        typedBindings <- sequence $ map (getBinding env . getIdentifier) bindings
         return $ Right $ Bindings typedBindings
     else
         return $ Left finalErrors
@@ -33,14 +33,38 @@ inferIdentifier env errors identifier = do
         Just ref -> do
             value <- readSTRef ref
             case value of
-                Expression expr -> do
+                Expression expr Nothing -> do
                     (typedExpr, exprType) <- inferExpression env errors expr
                     writeSTRef ref $ Typed typedExpr exprType
                     return exprType
+                Expression _ (Just annotation) -> return annotation
                 Typed _ exprType -> return exprType
         Nothing -> return dummy
 
-getEnvValue (Binding identifier value _) = (identifier, Expression value)
+checkIdentifier :: Env s -> STRef s [Error] -> String -> ST s ()
+checkIdentifier env errors identifier = do
+    val <- get identifier env
+    let dummy = ()
+    case val of
+        Just ref -> do
+            value <- readSTRef ref
+            case value of
+                Expression expr maybeAnnotation -> do
+                    (typedExpr, exprType) <- inferExpression env errors expr
+                    case maybeAnnotation of
+                        Nothing -> writeSTRef ref $ Typed typedExpr exprType
+                        Just annotation -> do
+                            when (annotation /= exprType) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
+                            writeSTRef ref $ Typed typedExpr annotation
+                Typed _ _ -> return ()
+        Nothing -> return dummy
+
+getEnvValue :: Binding -> (String, Value)
+getEnvValue (Binding identifier value _) = case value of
+    Literal (Lambda _ (Function params returnType _)) -> (identifier, Expression value (Just (TFunction (map snd params) returnType)))
+    _ -> (identifier, Expression value Nothing)
+
+getIdentifier :: Binding -> String
 getIdentifier (Binding identifier _ _) = identifier
 
 getBinding :: Env s -> String -> ST s Binding
@@ -52,7 +76,7 @@ getBinding env identifier = do
             value <- readSTRef ref
             case value of
                 Typed expr eType -> return $ Binding identifier expr eType
-                Expression _ -> return dummy
+                Expression _ _ -> return dummy
         Nothing -> return dummy
 
 reportError :: STRef s [Error] -> Error -> ST s ()
@@ -66,17 +90,17 @@ inferExpression env errors expression =
     in case expression of
         Let bindings expr -> do
             sequence_ $ map (set env . getEnvValue) bindings
-            sequence_ $ map (inferIdentifier env errors) $ map getIdentifier bindings
+            sequence_ $ map (checkIdentifier env errors . getIdentifier) bindings
             typedBindings <- sequence $ map (getBinding env . getIdentifier) bindings
             (typedExpr, exprType) <- ie expr
             sequence_ $ map (delete env . getIdentifier) bindings
             return (Let typedBindings typedExpr, exprType)
         If condition true false -> do
             (typedCondition, conditionType) <- ie condition
-            when (conditionType /= TBool) $ err $ Error "Condition of 'if' must be a boolean" EOF
+            when (conditionType /= TBool) $ err $ Error ("Condition of 'if' must be a boolean\nGot: " ++ show conditionType) EOF
             (typedTrue, trueType) <- ie true
             (typedFalse, falseType) <- ie false
-            when (trueType /= falseType) $ err $ Error "Both branches of 'if' must have the same type" EOF
+            when (trueType /= falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
             return (If typedCondition typedTrue typedFalse, trueType)
         Literal literal -> case literal of
             AST.Integer _ -> return (expression, TInteger)
@@ -87,7 +111,7 @@ inferExpression env errors expression =
                 let paramToEnv (identifier, annotation) = (identifier, Typed None annotation)
                 sequence_ $ map (set env . paramToEnv) params
                 (typedExpr, exprType) <- ie expr
-                when (returnType /= exprType) $ err $ Error "Function body does not match the annotated return type" EOF
+                when (returnType /= exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
                 sequence_ $ map (delete env . fst) params
                 return (Literal (Lambda freeVars (Function params returnType typedExpr)), TFunction (map snd params) returnType)
         Binary left op right -> do
@@ -95,9 +119,16 @@ inferExpression env errors expression =
             (typedRight, rightType) <- ie right
             case op of
                 Plus -> do
-                    when (leftType /= TInteger) $ err $ Error "First argument of '+' must be an integer" EOF
-                    when (rightType /= TInteger) $ err $ Error "Second argument of '+' must be an integer" EOF
+                    when (leftType /= TInteger) $ err $ Error ("First argument of '+' must be an integer\nGot: " ++ show leftType) EOF
+                    when (rightType /= TInteger) $ err $ Error ("Second argument of '+' must be an integer\nGot: " ++ show rightType) EOF
                     return (Binary typedLeft op typedRight, TInteger)
+                Minus -> do
+                    when (leftType /= TInteger) $ err $ Error ("First argument of '-' must be an integer\nGot: " ++ show leftType) EOF
+                    when (rightType /= TInteger) $ err $ Error ("Second argument of '-' must be an integer\nGot: " ++ show rightType) EOF
+                    return (Binary typedLeft op typedRight, TInteger)
+                Equality -> do
+                    when (leftType /= rightType) $ err $ Error ("Both arguments of '==' must be the same type") EOF
+                    return (Binary typedLeft op typedRight, TBool)
                 _ -> return unimplemented
         Call callee arguments -> do
             (typedCallee, calleeType) <- ie callee
@@ -107,7 +138,7 @@ inferExpression env errors expression =
                     checkArguments errors (map snd typedArguments) parameterTypes
                     return (Call typedCallee (map fst typedArguments), functionType)
                 _ -> do
-                    err $ Error "Callee must be a function" EOF
+                    err $ Error ("Callee must be a function\nGot: " ++ show calleeType) EOF
                     return (Call typedCallee arguments, TUndefined)
         Identifier identifier _ -> do
             identifierType <- inferIdentifier env errors identifier

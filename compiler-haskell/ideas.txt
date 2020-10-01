@@ -64,3 +64,5 @@ Consider all uses of a variable (even declaration) to be constraints then solve 
 Evaluate Elm VS Reflex VS Halogen VS CycleJS (group state dependencies instead of event effects)
 Check inference of record types in Elm
 Study OCaml syntax for partial application
+Find ways to fix "double indentation" (i.e. replace "let" with blocks)
+Error/panic syntax for "dummy" cases
