@@ -1,10 +1,22 @@
-program > binding*
+program > declaration*
+
+declaration > (type_declaration | binding)
+
+type_declaration > DATA_TYPE EQUALS constructor
+
+constructor > DATA_TYPE fields?
+
+fields > LEFT_PAREN parameter (COMMA parameter)* RIGHT_PAREN
 
 binding > (function | constant) EQUALS expression
 
-function > IDENTIFIER LEFT_PAREN parameters? RIGHT_PAREN
+function > IDENTIFIER LEFT_PAREN parameters? RIGHT_PAREN COLON type_annotation
 
-parameters > IDENTIFIER (COMMA IDENTIFIER)*
+parameters > parameter (COMMA parameter)*
+
+parameter > IDENTIFIER COLON type_annotation
+
+type_annotation > BASE_TYPE
 
 constant > IDENTIFIER
 
@@ -28,5 +40,5 @@ primary
     > LET binding* IN expression
     | IF expression THEN expression ELSE expression
     | LEFTPAREN expression RIGHTPAREN
-    | INTEGER
+    | LITERAL
     | IDENTIFIER
