@@ -1,3 +1,4 @@
 Change return type of 'consume' in parser to 'Maybe Token'
 Finish error messages in lexer
 Error positions in type checker
+Resolver: add error checks for recursion in non-function bindings

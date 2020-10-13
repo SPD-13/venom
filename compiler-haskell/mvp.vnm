@@ -1,43 +1,11 @@
-a = 4
-b = a + 1
+b = a
+a = 5 + 7
+c = "hello"
+e = 'f'
+id(var : String) : String = var
+g = id("Hello!")
 
-complicated = let
-    a = 4 * 10 $ Expensive!
-    b(c) = a + c
-    d = b(2)
-    e = d + a $ Oh no! Have to recompute a!
-    in e
-
-isOdd(n) =
-    if n == 0 then
-        0
-    else
-        isEven(n - 1)
-
-isEven(n) =
-    if n == 0 then
-        1
-    else
-        isOdd(n - 1)
-
-$[
-
-a() = b
-
-c() =
-    let b = 6
-    in a()
-
-result = c()
-
-makeAdder(n) =
-    let adder(m) = n + m
-    in adder
-
-fn = makeAdder(4)
-result2 = fn(12)
-
-fibonacci(n) =
+fibonacci(n : Int) : Int =
     if n == 0 then
         0
     else if n == 1 then
@@ -45,45 +13,25 @@ fibonacci(n) =
     else
         fibonacci(n - 1) + fibonacci(n - 2)
 
-result3 = fibonacci(11)
+result = fibonacci(11)
 
-$ 4
-result4 = d
-d = 4
+isOdd(n : Int) : Int =
+    if n == 0 then
+        0
+    else
+        isEven(n - 1)
 
-$ Does not resolve
-test() =
-    result5
-result5 = test()
+isEven(n : Int) : Int =
+    if n == 0 then
+        1
+    else
+        isOdd(n - 1)
 
-$ Does not resolve
-result6 = result6
+result2 = isOdd(26)
 
-$ Illegal?
-result7 = 1
-result7 = 2
-$[ $]
-$ Does not resolve
-test() =
-    result8
-result8 = test
+makeAdder(n : Int) : (Int)Int =
+    let adder(m : Int) : Int = n + m
+    in adder
 
-$ Resolves (recursion)
-test() =
-    result9()
-result9 = test
-
-$ Does not resolve
-result10 = result11
-result11 = result10
-
-$ Resolves (recursion)
-result12() =
-    result13()
-result13() = 
-    result12()
-
-$ RuntimeError / TypeCheck
-result14 = 8()
-
-$]
+fn = makeAdder(4)
+result3 = fn(12)
