@@ -44,6 +44,7 @@ data Expression
     | If Expression Expression Expression
     | Binary Expression Operator Expression
     | Call Expression [Expression]
+    | FieldAccess Expression String
     | Literal Literal
     | Identifier String Position
     | None

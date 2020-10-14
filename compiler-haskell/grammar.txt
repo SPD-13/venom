@@ -1,12 +1,8 @@
-program > declaration*
-
-declaration > (type_declaration | binding)
+program > type_declaration* binding*
 
 type_declaration > DATA_TYPE EQUALS constructor
 
-constructor > DATA_TYPE fields?
-
-fields > LEFT_PAREN parameter (COMMA parameter)* RIGHT_PAREN
+constructor > DATA_TYPE LEFT_PAREN parameters? RIGHT_PAREN
 
 binding > (function | constant) EQUALS expression
 
@@ -16,7 +12,11 @@ parameters > parameter (COMMA parameter)*
 
 parameter > IDENTIFIER COLON type_annotation
 
-type_annotation > BASE_TYPE
+type_annotation > BASE_TYPE | function_annotation
+
+function_annotation > LEFT_PAREN param_types? RIGHT_PAREN type_annotation
+
+param_types > type_annotation (COMMA type_annotation)*
 
 constant > IDENTIFIER
 
@@ -32,7 +32,7 @@ addition > multiplication ((PLUS | MINUS) multiplication)*
 
 multiplication > call (TIMES call)*
 
-call > primary (LEFT_PAREN arguments? RIGHT_PAREN)*
+call > primary ((LEFT_PAREN arguments? RIGHT_PAREN) | (DOT IDENTIFIER))*
 
 arguments > expression (COMMA expression)*
 
@@ -42,3 +42,4 @@ primary
     | LEFTPAREN expression RIGHTPAREN
     | LITERAL
     | IDENTIFIER
+    | DATA_TYPE

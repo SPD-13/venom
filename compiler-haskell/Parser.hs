@@ -265,6 +265,15 @@ recurseCall callee = peek >>= \case
         advance 1
         args <- arguments
         recurseCall $ Call callee args
+    [Dot] -> do
+        advance 1
+        (next, token) <- consume
+        case next of
+            [Token.Identifier identifier] ->
+                recurseCall $ FieldAccess callee identifier
+            _ -> do
+                reportError "Expecting field identifier after '.'" token
+                return None
     _ -> return callee
 
 arguments :: State ParserState [Expression]
@@ -327,6 +336,7 @@ primary = do
         [Token.Char char] -> return $ Literal $ AST.Char char
         [Token.String string] -> return $ Literal $ AST.String string
         [Token.Identifier identifier] -> return $ AST.Identifier identifier $ Token.position $ head token
+        [DataType identifier] -> return $ AST.Identifier identifier $ Token.position $ head token
         _ -> do
             reportError "Unexpected token" token
             return None
