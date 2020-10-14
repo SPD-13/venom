@@ -45,10 +45,80 @@ reportError message maybeToken =
 
 parseTokens :: State ParserState AST
 parseTokens = do
+    typeDeclarations <- types
     declarations <- bindings
     tokens <- gets remainingTokens
     unless (null tokens) $ reportError "Unexpected token after top-level declarations" tokens
-    return $ Bindings declarations
+    return $ AST typeDeclarations declarations
+
+types :: State ParserState [TypeDeclaration]
+types = peek >>= \case
+    [DataType name] -> do
+        advance 1
+        (next, token) <- consume
+        case next of
+            [Equals] -> do
+                maybeCons <- constructor
+                case maybeCons of
+                    Just cons -> do
+                        otherTypes <- types
+                        return $ TypeDeclaration name cons : otherTypes
+                    Nothing -> return []
+            _ -> do
+                reportError "Expecting '=' after identifier in type declaration" token
+                return []
+    _ -> return []
+
+constructor :: State ParserState (Maybe Constructor)
+constructor = do
+    (next, token) <- consume
+    case next of
+        [DataType name] -> do
+            (next, token) <- consume
+            case next of
+                [LeftParen] -> do
+                    constructorFields <- fields
+                    return $ Just $ Constructor name constructorFields
+                _ -> do
+                    reportError "" token
+                    return Nothing
+        _ -> do
+            reportError "" token
+            return Nothing
+
+fields :: State ParserState [Field]
+fields = peek >>= \case
+    [RightParen] -> do
+        advance 1
+        return []
+    _ -> recurseFields
+
+recurseFields :: State ParserState [Field]
+recurseFields = do
+    (next, token) <- consume
+    case next of
+        [Token.Identifier identifier] -> do
+            (next, token) <- consume
+            case next of
+                [Colon] -> do
+                    annotation <- typeAnnotation
+                    if annotation == TUndefined then return []
+                    else do
+                        (next, token) <- consume
+                        case next of
+                            [Comma] -> do
+                                otherFields <- recurseFields
+                                return $ Field identifier annotation : otherFields
+                            [RightParen] -> return [Field identifier annotation]
+                            _ -> do
+                                reportError "Expecting ',' or ')' after field in type definition" token
+                                return []
+                _ -> do
+                    reportError "Fields must be followed by a type annotation" token
+                    return []
+        _ -> do
+            reportError "Expecting identifier in field list" token
+            return []
 
 bindings :: State ParserState [Binding]
 bindings = peek >>= \case

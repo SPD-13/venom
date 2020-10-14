@@ -1,3 +1,7 @@
+Test = Test(field : String, otherField : Int)
+instance = Test("test", 4)
+field = instance.field
+
 b = a
 a = 5 + 7
 c = "hello"

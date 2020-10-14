@@ -6,7 +6,16 @@ import Operator
 import Position
 
 data AST
-    = Bindings [Binding]
+    = AST [TypeDeclaration] [Binding]
+
+data TypeDeclaration
+    = TypeDeclaration String Constructor
+
+data Constructor
+    = Constructor String [Field]
+
+data Field
+    = Field String ExpressionType
 
 data Binding
     = Binding String Expression ExpressionType
@@ -57,7 +66,7 @@ indent string =
     unlines' (map ("  " ++) (lines string))
 
 instance Show AST where
-    show (Bindings bindings) =
+    show (AST typeDeclarations bindings) =
         "Bindings\n" ++ unlines' (map (indent . show) bindings)
 
 instance Show Binding where
