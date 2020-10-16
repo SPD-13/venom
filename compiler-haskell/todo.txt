@@ -5,5 +5,6 @@ Parser:
     Better error recovery / panic mode
 Resolver:
     Add error checks for recursion in non-function bindings
+    Add checks for shadowing / multiple declarations / ambiguity
 TypeChecker:
     Add proper location for errors

@@ -12,16 +12,21 @@ data Variable = Variable
     }
 
 resolve :: AST -> Either [E.Error] AST
-resolve (Bindings bindings) =
+resolve (AST types bindings) =
     let (resolvedBindings, bindingVars) = unzip $ map resolveBinding bindings
         vars = concat bindingVars
+        typeConstructors = map getConstructor types
         bindingNames = map getIdentifier bindings
-        undefinedErrors = filter ((`notElem` bindingNames) . name) vars
+        declaredNames = typeConstructors ++ bindingNames
+        undefinedErrors = filter ((`notElem` declaredNames) . name) vars
         reportError var = E.Error ("Unknown variable '" ++ name var ++ "'") (E.Position $ position var)
     in if null undefinedErrors then
-        Right $ Bindings resolvedBindings
+        Right $ AST types resolvedBindings
     else
         Left $ map reportError undefinedErrors
+
+getConstructor :: TypeDeclaration -> String
+getConstructor (TypeDeclaration _ (Constructor name _)) = name
 
 resolveBinding :: Binding -> (Binding, [Variable])
 resolveBinding (Binding identifier expression expressionType) =
@@ -52,6 +57,9 @@ resolveExpression expression = case expression of
         let (resolvedCallee, vars) = resolveExpression callee
             (resolvedArgs, argsVars) = unzip $ map resolveExpression args
         in (Call resolvedCallee resolvedArgs, vars ++ (concat argsVars))
+    FieldAccess record field ->
+        let (resolvedRecord, vars) = resolveExpression record
+        in (FieldAccess resolvedRecord field, vars)
     Literal literal -> case literal of
         Lambda _ (Function params returnType expr) ->
             let (resolvedExpression, vars) = resolveExpression expr
