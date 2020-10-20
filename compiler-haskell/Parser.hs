@@ -101,18 +101,19 @@ recurseFields = do
             (next, token) <- consume
             case next of
                 [Colon] -> do
-                    annotation <- typeAnnotation
-                    if annotation == TUndefined then return []
-                    else do
-                        (next, token) <- consume
-                        case next of
-                            [Comma] -> do
-                                otherFields <- recurseFields
-                                return $ Field identifier annotation : otherFields
-                            [RightParen] -> return [Field identifier annotation]
-                            _ -> do
-                                reportError "Expecting ',' or ')' after field in type definition" token
-                                return []
+                    maybeAnnotation <- typeAnnotation
+                    case maybeAnnotation of
+                        Just annotation -> do
+                            (next, token) <- consume
+                            case next of
+                                [Comma] -> do
+                                    otherFields <- recurseFields
+                                    return $ Field identifier annotation : otherFields
+                                [RightParen] -> return [Field identifier annotation]
+                                _ -> do
+                                    reportError "Expecting ',' or ')' after field in type definition" token
+                                    return []
+                        Nothing -> return []
                 _ -> do
                     reportError "Fields must be followed by a type annotation" token
                     return []
@@ -139,31 +140,32 @@ function identifier = do
     (next, token) <- consume
     case next of
         [Colon] -> do
-            annotation <- typeAnnotation
-            if annotation == TUndefined then return []
-            else do
-                (next, token) <- consume
-                case next of
-                    [Equals] -> do
-                        expr <- expression
-                        let binding = Binding identifier (Literal (Lambda [] (Function params annotation expr))) TUndefined
-                        otherBindings <- bindings
-                        return $ binding : otherBindings
-                    _ -> do
-                        reportError "Expecting '=' after return type in function definition" token
-                        return []
+            maybeAnnotation <- typeAnnotation
+            case maybeAnnotation of
+                Just annotation -> do
+                    (next, token) <- consume
+                    case next of
+                        [Equals] -> do
+                            expr <- expression
+                            let binding = Binding identifier (Literal (Lambda [] (Function params annotation expr))) TUndefined
+                            otherBindings <- bindings
+                            return $ binding : otherBindings
+                        _ -> do
+                            reportError "Expecting '=' after return type in function definition" token
+                            return []
+                Nothing -> return []
         _ -> do
             reportError "Expecting annotation of return type after parameters in function definition" token
             return []
 
-parameters :: State ParserState [(String, ExpressionType)]
+parameters :: State ParserState [(String, TypeAnnotation)]
 parameters = peek >>= \case
     [RightParen] -> do
         advance 1
         return []
     _ -> recurseParameters
 
-recurseParameters :: State ParserState [(String, ExpressionType)]
+recurseParameters :: State ParserState [(String, TypeAnnotation)]
 recurseParameters = do
     (next, token) <- consume
     case next of
@@ -171,18 +173,19 @@ recurseParameters = do
             (next, token) <- consume
             case next of
                 [Colon] -> do
-                    annotation <- typeAnnotation
-                    if annotation == TUndefined then return []
-                    else do
-                        (next, token) <- consume
-                        case next of
-                            [Comma] -> do
-                                params <- recurseParameters
-                                return $ (identifier, annotation) : params
-                            [RightParen] -> return [(identifier, annotation)]
-                            _ -> do
-                                reportError "Expecting ',' or ')' after parameter in function definition" token
-                                return []
+                    maybeAnnotation <- typeAnnotation
+                    case maybeAnnotation of
+                        Just annotation -> do
+                            (next, token) <- consume
+                            case next of
+                                [Comma] -> do
+                                    params <- recurseParameters
+                                    return $ (identifier, annotation) : params
+                                [RightParen] -> return [(identifier, annotation)]
+                                _ -> do
+                                    reportError "Expecting ',' or ')' after parameter in function definition" token
+                                    return []
+                        Nothing -> return []
                 _ -> do
                     reportError "Function parameters must be followed by a type annotation" token
                     return []
@@ -190,41 +193,44 @@ recurseParameters = do
             reportError "Expecting identifier in parameter list" token
             return []
 
-typeAnnotation :: State ParserState ExpressionType
+typeAnnotation :: State ParserState (Maybe TypeAnnotation)
 typeAnnotation = do
     (next, token) <- consume
     case next of
-        [BaseType annotation] -> return annotation
+        [DataType name] -> return $ Just $ ConstantAnnotation name
         [LeftParen] -> functionType
         _ -> do
             reportError "Invalid type annotation" token
-            return TUndefined
+            return Nothing
 
-functionType :: State ParserState ExpressionType
+functionType :: State ParserState (Maybe TypeAnnotation)
 functionType = do
     params <- parameterTypes
     returnType <- typeAnnotation
-    return $ TFunction params returnType
+    return $ FunctionAnnotation params <$> returnType
 
-parameterTypes :: State ParserState [ExpressionType]
+parameterTypes :: State ParserState [TypeAnnotation]
 parameterTypes = peek >>= \case
     [RightParen] -> do
         advance 1
         return []
     _ -> recurseParameterTypes
 
-recurseParameterTypes :: State ParserState [ExpressionType]
+recurseParameterTypes :: State ParserState [TypeAnnotation]
 recurseParameterTypes = do
-    annotation <- typeAnnotation
-    (next, token) <- consume
-    case next of
-        [Comma] -> do
-            params <- recurseParameterTypes
-            return $ annotation : params
-        [RightParen] -> return [annotation]
-        _ -> do
-            reportError "Expecting ',' or ')' after parameter type in type annotation" token
-            return []
+    maybeAnnotation <- typeAnnotation
+    case maybeAnnotation of
+        Just annotation -> do
+            (next, token) <- consume
+            case next of
+                [Comma] -> do
+                    params <- recurseParameterTypes
+                    return $ annotation : params
+                [RightParen] -> return [annotation]
+                _ -> do
+                    reportError "Expecting ',' or ')' after parameter type in type annotation" token
+                    return []
+        Nothing -> return []
 
 constant :: String -> State ParserState [Binding]
 constant identifier = do

@@ -10,22 +10,31 @@ data AST
 
 data TypeDeclaration
     = TypeDeclaration String Constructor
+    deriving Eq
 
 data Constructor
     = Constructor String [Field]
+    deriving Eq
 
 data Field
-    = Field String ExpressionType
+    = Field String TypeAnnotation
+    deriving Eq
 
 data Binding
     = Binding String Expression ExpressionType
     deriving Eq
+
+data TypeAnnotation
+    = ConstantAnnotation String
+    | FunctionAnnotation [TypeAnnotation] TypeAnnotation
+    deriving (Eq, Show)
 
 data ExpressionType
     = TInteger
     | TBool
     | TChar
     | TString
+    | TCustom TypeDeclaration
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
@@ -58,7 +67,7 @@ data Literal
     | Lambda [String] Function
     deriving (Eq, Show)
 
-data Function = Function [(String, ExpressionType)] ExpressionType Expression deriving (Eq, Show)
+data Function = Function [(String, TypeAnnotation)] TypeAnnotation Expression deriving (Eq, Show)
 
 unlines' = init . unlines
 
@@ -67,7 +76,7 @@ indent string =
     unlines' (map ("  " ++) (lines string))
 
 instance Show AST where
-    show (AST typeDeclarations bindings) =
+    show (AST types bindings) =
         "Bindings\n" ++ unlines' (map (indent . show) bindings)
 
 instance Show Binding where

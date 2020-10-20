@@ -10,7 +10,7 @@ import AST
 import qualified Environment as E
 
 interpret :: AST -> String
-interpret (Bindings bindings) =
+interpret (AST types bindings) =
     runST $ interpretBindings bindings
 
 getEnvValue (Binding identifier value _) = (identifier, E.Expression value)

@@ -114,7 +114,7 @@ parseIdentifier state input =
 
 parseDataType state input =
     let (word, rest) = span isAlphaNum input
-        tokenType = matchType word
+        tokenType = DataType word
         token = Token tokenType (getPosition state)
     in
         ( state { currentColumn = currentColumn state + genericLength word, tokens = token : tokens state }

@@ -1,7 +1,5 @@
 module Resolver where
 
-import Data.List (nub)
-
 import AST
 import qualified Error as E
 import qualified Position as P
