@@ -5,6 +5,7 @@ import Control.Monad.ST
 import Data.STRef
 import qualified Data.Map as M
 import Data.Maybe
+import Data.List (foldl')
 
 import AST
 import Error
@@ -16,9 +17,11 @@ typeCheck ast = runST $ checkBindings ast
 
 checkBindings :: AST -> ST s (Either [Error] AST)
 checkBindings (AST declaredTypes bindings) = do
-    let types = M.empty
+    let getTypeName (TypeDeclaration name _) = name
+        types = foldl' declareType M.empty $ map getTypeName declaredTypes
     env <- new
     errors <- newSTRef []
+    sequence_ $ map (inferConstructor types env errors) declaredTypes
     sequence_ $ map (set env . getEnvValue types errors) bindings
     typedBindings <- sequence $ map (checkIdentifier types env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
@@ -26,6 +29,33 @@ checkBindings (AST declaredTypes bindings) = do
         return $ Right $ AST declaredTypes typedBindings
     else
         return $ Left finalErrors
+
+declareType :: M.Map String ExpressionType -> String -> M.Map String ExpressionType
+declareType types typeName = M.insert typeName (TCustom typeName) types
+
+inferConstructor :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
+inferConstructor types env errors (TypeDeclaration typeName (Constructor name fields)) = do
+    let getAnnotation (Field _ annotation) = annotation
+        fieldAnnotations = map getAnnotation fields
+        constructorAnnotation = FunctionAnnotation fieldAnnotations (ConstantAnnotation typeName)
+        constructorType = fromMaybe TUndefined $ annotationToType types errors constructorAnnotation
+    set env (name, Typed None constructorType)
+
+inferIdentifier :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
+inferIdentifier types env errors identifier = do
+    val <- get identifier env
+    let dummy = TUndefined
+    case val of
+        Just ref -> do
+            value <- readSTRef ref
+            case value of
+                Untyped expr Nothing -> do
+                    (typedExpr, exprType) <- inferExpression types env errors expr
+                    writeSTRef ref $ Typed typedExpr exprType
+                    return exprType
+                Untyped _ (Just annotation) -> return annotation
+                Typed _ exprType -> return exprType
+        Nothing -> return dummy
 
 checkIdentifier :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> ST s Binding
 checkIdentifier types env errors identifier = do
@@ -121,7 +151,7 @@ inferExpression types env errors expression =
         FieldAccess record field -> do
             (typedRecord, recordType) <- ie record
             case recordType of
-                TCustom (TypeDeclaration _ (Constructor _ fields)) -> do
+                TCustom _ -> do
 
                     return (FieldAccess typedRecord field, TUndefined)
                 _ -> do
@@ -132,15 +162,19 @@ inferExpression types env errors expression =
             AST.Bool _ -> return (expression, TBool)
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
-            Lambda freeVars (Function params returnType expr) -> do
-                let paramToEnv (identifier, annotation) = (identifier, Typed None annotation)
-                sequence_ $ map (set env . paramToEnv) params
-                (typedExpr, exprType) <- ie expr
-                when (returnType /= exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
-                sequence_ $ map (delete env . fst) params
-                return (Literal (Lambda freeVars (Function params returnType typedExpr)), TFunction (map snd params) returnType)
+            Lambda freeVars (Function params returnAnnotation expr) ->
+                let maybeFunctionType = annotationToType types errors $ FunctionAnnotation (map snd params) returnAnnotation
+                in case maybeFunctionType of
+                    Just functionType@(TFunction paramTypes returnType) -> do
+                        let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
+                        sequence_ $ map (set env . paramToEnv) $ zip (map fst params) paramTypes
+                        (typedExpr, exprType) <- ie expr
+                        when (returnType /= exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
+                        sequence_ $ map (delete env . fst) params
+                        return (Literal (Lambda freeVars (Function params returnAnnotation typedExpr)), functionType)
+                    _ -> return (expression, TUndefined)
         Identifier identifier _ -> do
-            Binding _ _ identifierType <- checkIdentifier types env errors identifier
+            identifierType <- inferIdentifier types env errors identifier
             return (expression, identifierType)
         None -> return (None, TUndefined)
 

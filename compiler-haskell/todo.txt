@@ -8,3 +8,5 @@ Resolver:
     Add checks for shadowing / multiple declarations / ambiguity
 TypeChecker:
     Add proper location for errors
+    Report error for invalid annotations
+    Remove duplicate annotation conversion for functions (getEnvValue and inferExpression)

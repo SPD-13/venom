@@ -69,3 +69,4 @@ Error/panic syntax for "dummy" cases
 Replace "_ -> do reportError" blocks in parser with some kind of "expect" construct
 Use "Maybe _" in parser as error return types instead of "None" and "TUndefined"
 Automatic derivation / default behaviour for common typeclasses
+Put stacks of values in the environment to allow for shadowing

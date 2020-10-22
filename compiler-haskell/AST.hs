@@ -34,7 +34,7 @@ data ExpressionType
     | TBool
     | TChar
     | TString
-    | TCustom TypeDeclaration
+    | TCustom String
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
@@ -45,6 +45,7 @@ instance Show ExpressionType where
         TBool -> "Bool"
         TChar -> "Char"
         TString -> "String"
+        TCustom name -> name
         TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
         TUndefined -> "Undefined"
 

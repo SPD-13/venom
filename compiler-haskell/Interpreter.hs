@@ -80,6 +80,8 @@ interpretExpression evaluating env expression =
                     sequence_ $ map (E.set functionEnv) $ zip (map fst params) $ map E.Computed concreteArguments
                     interpretExpression [] functionEnv expr
                 _ -> return E.RuntimeError
+        FieldAccess record field -> do
+            return E.RuntimeError
         Literal literal ->
             case literal of
                 Integer integer -> return $ E.Integer integer
@@ -105,7 +107,7 @@ resolveFreeVariable evaluating currentEnv closureEnv identifier = do
                     unless (elem identifier evaluating) $ do
                         computed <- interpretExpression (identifier:evaluating) currentEnv expr
                         writeSTRef ref $ E.Computed computed
-                computed -> return ()
+                E.Computed _ -> return ()
         Nothing -> return ()
 
 isTrue = (== E.Bool True)
