@@ -1,5 +1,7 @@
 module Resolver where
 
+import Data.List.NonEmpty (NonEmpty((:|)))
+
 import AST
 import qualified Error as E
 import qualified Position as P
@@ -13,7 +15,7 @@ resolve :: AST -> Either [E.Error] AST
 resolve (AST types bindings) =
     let (resolvedBindings, bindingVars) = unzip $ map resolveBinding bindings
         vars = concat bindingVars
-        typeConstructors = map getConstructor types
+        typeConstructors = concatMap getConstructors types
         bindingNames = map getIdentifier bindings
         declaredNames = typeConstructors ++ bindingNames
         undefinedErrors = filter ((`notElem` declaredNames) . name) vars
@@ -23,8 +25,10 @@ resolve (AST types bindings) =
     else
         Left $ map reportError undefinedErrors
 
-getConstructor :: TypeDeclaration -> String
-getConstructor (TypeDeclaration _ (Constructor name _)) = name
+getConstructors :: TypeDeclaration -> [String]
+getConstructors (TypeDeclaration _ (cons :| otherCons)) =
+    let getName (Constructor name _) = name
+    in getName cons : map getName otherCons
 
 resolveBinding :: Binding -> (Binding, [Variable])
 resolveBinding (Binding identifier expression expressionType) =

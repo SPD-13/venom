@@ -3,6 +3,7 @@
 module Parser where
 
 import Control.Monad.State.Lazy
+import Data.List.NonEmpty (NonEmpty((:|)))
 
 import AST
 import Error
@@ -61,12 +62,25 @@ types = peek >>= \case
                 maybeCons <- constructor
                 case maybeCons of
                     Just cons -> do
+                        otherCons <- otherConstructors
                         otherTypes <- types
-                        return $ TypeDeclaration name cons : otherTypes
+                        return $ TypeDeclaration name (cons :| otherCons) : otherTypes
                     Nothing -> return []
             _ -> do
                 reportError "Expecting '=' after identifier in type declaration" token
                 return []
+    _ -> return []
+
+otherConstructors :: State ParserState [Constructor]
+otherConstructors = peek >>= \case
+    [Union] -> do
+        advance 1
+        maybeCons <- constructor
+        case maybeCons of
+            Just cons -> do
+                otherCons <- otherConstructors
+                return $ cons : otherCons
+            Nothing -> return []
     _ -> return []
 
 constructor :: State ParserState (Maybe Constructor)

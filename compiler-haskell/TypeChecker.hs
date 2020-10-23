@@ -21,7 +21,7 @@ checkBindings (AST declaredTypes bindings) = do
         types = foldl' declareType M.empty $ map getTypeName declaredTypes
     env <- new
     errors <- newSTRef []
-    sequence_ $ map (inferConstructor types env errors) declaredTypes
+    sequence_ $ map (inferConstructors types env errors) declaredTypes
     sequence_ $ map (set env . getEnvValue types errors) bindings
     typedBindings <- sequence $ map (checkIdentifier types env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
@@ -33,13 +33,17 @@ checkBindings (AST declaredTypes bindings) = do
 declareType :: M.Map String ExpressionType -> String -> M.Map String ExpressionType
 declareType types typeName = M.insert typeName (TCustom typeName) types
 
-inferConstructor :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
-inferConstructor types env errors (TypeDeclaration typeName (Constructor name fields)) = do
+inferConstructors :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
+inferConstructors types env errors (TypeDeclaration typeName constructors) =
+    sequence_ $ fmap (inferConstructor types env errors typeName) constructors
+
+inferConstructor :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> Constructor -> ST s ()
+inferConstructor types env errors typeName (Constructor name fields) =
     let getAnnotation (Field _ annotation) = annotation
         fieldAnnotations = map getAnnotation fields
         constructorAnnotation = FunctionAnnotation fieldAnnotations (ConstantAnnotation typeName)
         constructorType = fromMaybe TUndefined $ annotationToType types errors constructorAnnotation
-    set env (name, Typed None constructorType)
+    in set env (name, Typed None constructorType)
 
 inferIdentifier :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
 inferIdentifier types env errors identifier = do

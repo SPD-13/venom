@@ -1,6 +1,7 @@
 module AST where
 
 import Data.List (intercalate)
+import Data.List.NonEmpty (NonEmpty)
 
 import Operator
 import Position
@@ -9,7 +10,7 @@ data AST
     = AST [TypeDeclaration] [Binding]
 
 data TypeDeclaration
-    = TypeDeclaration String Constructor
+    = TypeDeclaration String (NonEmpty Constructor)
     deriving Eq
 
 data Constructor
