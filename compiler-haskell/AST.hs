@@ -2,6 +2,7 @@ module AST where
 
 import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.Map as M
 
 import Operator
 import Position
@@ -35,10 +36,12 @@ data ExpressionType
     | TBool
     | TChar
     | TString
-    | TCustom String
+    | TCustom String (Maybe FieldTypes)
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
+
+type FieldTypes = M.Map String ExpressionType
 
 instance Show ExpressionType where
     show eType = case eType of
@@ -46,7 +49,7 @@ instance Show ExpressionType where
         TBool -> "Bool"
         TChar -> "Char"
         TString -> "String"
-        TCustom name -> name
+        TCustom name _ -> name
         TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
         TUndefined -> "Undefined"
 

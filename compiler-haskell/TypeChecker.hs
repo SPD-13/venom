@@ -31,7 +31,7 @@ checkBindings (AST declaredTypes bindings) = do
         return $ Left finalErrors
 
 declareType :: M.Map String ExpressionType -> String -> M.Map String ExpressionType
-declareType types typeName = M.insert typeName (TCustom typeName) types
+declareType types typeName = M.insert typeName (TCustom typeName Nothing) types
 
 inferConstructors :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
 inferConstructors types env errors (TypeDeclaration typeName constructors) =
@@ -155,9 +155,17 @@ inferExpression types env errors expression =
         FieldAccess record field -> do
             (typedRecord, recordType) <- ie record
             case recordType of
-                TCustom _ -> do
-
-                    return (FieldAccess typedRecord field, TUndefined)
+                TCustom _ maybeFieldTypes -> case maybeFieldTypes of
+                    Just fieldTypes ->
+                        let maybeResult = M.lookup field fieldTypes
+                        in case maybeResult of
+                            Just result -> return (FieldAccess typedRecord field, result)
+                            Nothing -> do
+                                err $ Error ("Field '" ++ field ++ "' does not exist on the specified record") EOF
+                                return (FieldAccess typedRecord field, TUndefined)
+                    Nothing -> do
+                        err $ Error "Can't access field on object with multiple constructors\nUse 'case' statement to split on constructors" EOF
+                        return (FieldAccess typedRecord field, TUndefined)
                 _ -> do
                     err $ Error ("Left side of field access must be a record\nGot: " ++ show recordType) EOF
                     return (FieldAccess typedRecord field, TUndefined)
