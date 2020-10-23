@@ -31,7 +31,7 @@ checkBindings (AST declaredTypes bindings) = do
         return $ Left finalErrors
 
 declareType :: M.Map String ExpressionType -> String -> M.Map String ExpressionType
-declareType types typeName = M.insert typeName (TCustom typeName Nothing) types
+declareType types name = M.insert name (TCustom name Nothing) types
 
 inferConstructors :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
 inferConstructors types env errors (TypeDeclaration typeName constructors) =
@@ -39,10 +39,14 @@ inferConstructors types env errors (TypeDeclaration typeName constructors) =
 
 inferConstructor :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> Constructor -> ST s ()
 inferConstructor types env errors typeName (Constructor name fields) =
-    let getAnnotation (Field _ annotation) = annotation
-        fieldAnnotations = map getAnnotation fields
-        constructorAnnotation = FunctionAnnotation fieldAnnotations (ConstantAnnotation typeName)
-        constructorType = fromMaybe TUndefined $ annotationToType types errors constructorAnnotation
+    let getName (Field fieldName _) = fieldName
+        getAnnotation (Field _ annotation) = annotation
+        maybeFieldTypes = sequence $ map (annotationToType types errors . getAnnotation) fields
+        constructorType = case maybeFieldTypes of
+            Just fieldTypes ->
+                let returnType = TCustom typeName $ Just $ M.fromList $ zip (map getName fields) fieldTypes
+                in TFunction fieldTypes returnType
+            Nothing -> TUndefined
     in set env (name, Typed None constructorType)
 
 inferIdentifier :: M.Map String ExpressionType -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
