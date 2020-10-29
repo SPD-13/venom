@@ -232,4 +232,9 @@ checkArguments errors arguments parameters = do
 
 checkArgument :: STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
 checkArgument errors (index, (argType, paramType)) =
-    when (argType /= paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
+    when (not $ isSubtype argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
+
+isSubtype :: ExpressionType -> ExpressionType -> Bool
+isSubtype argument parameter = case (argument, parameter) of
+    (TCustom argName _, TCustom paramName _) -> argName == paramName
+    _ -> argument == parameter
