@@ -193,7 +193,7 @@ inferExpression types env errors expression =
                                 err $ Error ("Field '" ++ field ++ "' does not exist on the specified record") EOF
                                 return (FieldAccess typedRecord field, TUndefined)
                     Nothing -> do
-                        err $ Error "Can't access field on object with multiple constructors\nUse 'case' statement to split on constructors" EOF
+                        err $ Error "Can't access field on object with multiple constructors\nUse 'case' expression to split on constructors" EOF
                         return (FieldAccess typedRecord field, TUndefined)
                 _ -> do
                     err $ Error ("Left side of field access must be a record\nGot: " ++ show recordType) EOF

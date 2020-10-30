@@ -344,6 +344,14 @@ primary = do
             else do
                 reportError "Expecting 'then' after condition in 'if' expression" token
                 return None
+        [Token.Case] -> do
+            variable <- expression
+            (next, token) <- consume
+            if next == [Of] then do
+                
+            else do
+                reportError "Expecting 'of' after variable in 'case' expression" token
+                return None
         [LeftParen] -> do
             expr <- expression
             (next, token) <- consume

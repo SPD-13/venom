@@ -1,6 +1,6 @@
 module Lexer where
 
-import Data.List (genericLength)
+import Data.List (genericLength, genericDrop)
 import Data.Char
 
 import Error
@@ -27,8 +27,8 @@ lex input =
 lexerStep :: State -> String -> State
 lexerStep finalState "" = finalState
 lexerStep state input@(char:rest) =
-    let pc = parseChar state rest
-        pdc = parseDoubleChar state rest
+    let pc = parseToken state input 1
+        pdc = parseToken state input 2
         result =
             case char of
                 '(' -> pc LeftParen
@@ -60,7 +60,11 @@ lexerStep state input@(char:rest) =
                     else
                         (state { errors = Error "Unexpected character '/'" (Error.Position (getPosition state)) : errors state }, "")
                 '+' -> pc $ Operator Plus
-                '-' -> pc $ Operator Minus
+                '-' ->
+                    if peek rest == ">" then
+                        pdc Arrow
+                    else
+                        pc $ Operator Minus
                 '*' -> pc $ Operator Times
                 '%' -> pc $ Operator Modulo
                 '!' -> if peek rest == ">" then pdc $ Operator PartialPipe else (state, "")
@@ -89,18 +93,11 @@ lexerStep state input@(char:rest) =
 peek :: String -> String
 peek = take 1
 
-parseChar state input tokenType =
+parseToken state input length tokenType =
     let token = Token tokenType (getPosition state)
     in
-        ( state { currentColumn = currentColumn state + 1, tokens = token : tokens state }
-        , input
-        )
-
-parseDoubleChar state input tokenType =
-    let token = Token tokenType (getPosition state)
-    in
-        ( state { currentColumn = currentColumn state + 2, tokens = token : tokens state }
-        , tail input
+        ( state { currentColumn = currentColumn state + length, tokens = token : tokens state }
+        , genericDrop length input
         )
 
 parseIdentifier state input =

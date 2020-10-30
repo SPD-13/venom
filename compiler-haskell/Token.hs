@@ -1,6 +1,5 @@
 module Token where
 
-import AST (ExpressionType(..))
 import Operator
 import Position
 
@@ -17,6 +16,8 @@ data TokenType
     | Is -- is
     | Let -- let
     | In -- in
+    | Case -- case
+    | Of -- of
     -- Characters
     | LeftParen -- (
     | RightParen -- )
@@ -30,6 +31,7 @@ data TokenType
     | Comma -- ,
     | Dot -- .
     | Colon -- :
+    | Arrow -- ->
     -- Operators
     | Operator Operator
     -- Literals
@@ -49,4 +51,6 @@ matchKeyword text = case text of
     "is" -> Is
     "let" -> Let
     "in" -> In
+    "case" -> Case
+    "of" -> Of
     _ -> Identifier text

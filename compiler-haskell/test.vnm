@@ -9,9 +9,9 @@ app = App(
 )
 
 update(event : Event, state : State) : State =
-    if event is
-        Increment then state(counter = state.counter + 1)
-        Decrement then state(counter = state.counter - 1)
+    case event of
+        Increment -> state(counter = state.counter + 1)
+        Decrement -> state(counter = state.counter - 1)
 
 view(state : State) : Html =
     let text = Div(children = [Text(state.text)])
