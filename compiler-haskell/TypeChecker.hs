@@ -46,15 +46,15 @@ inferConstructors types env errors (TypeDeclaration typeName constructors) =
 
 inferConstructor :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> Constructor -> ST s ()
 inferConstructor types env errors typeName constructor@(Constructor name _) = do
-    (paramTypes, fieldTypes) <- getFieldTypes types errors constructor
+    (paramTypes, fieldTypes) <- getFieldTypes True types errors constructor
     let constructorType = TFunction paramTypes $ TCustom typeName $ Just fieldTypes
     set env (name, Typed None constructorType)
 
-getFieldTypes :: TypeDeclarations s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
-getFieldTypes types errors (Constructor _ fields) = do
+getFieldTypes :: Bool -> TypeDeclarations s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
+getFieldTypes report types errors (Constructor _ fields) = do
     let getName (Field fieldName _) = fieldName
         getAnnotation (Field _ annotation) = annotation
-    fieldTypes <- sequence $ map (annotationToType types errors . getAnnotation) fields
+    fieldTypes <- sequence $ map (annotationToType report types errors . getAnnotation) fields
     return (fieldTypes, M.fromList $ zip (map getName fields) fieldTypes)
 
 inferIdentifier :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
@@ -90,31 +90,33 @@ checkIdentifier types env errors identifier = do
                 Typed expr eType -> return $ Binding identifier expr eType
         Nothing -> return dummy
 
-getDeclarationType :: TypeDeclarations s -> STRef s [Error] -> String -> ST s ExpressionType
-getDeclarationType types errors name = do
+getDeclarationType :: Bool -> TypeDeclarations s -> STRef s [Error] -> String -> ST s ExpressionType
+getDeclarationType report types errors name = do
     maybeDeclarationType <- H.lookup types name
     case maybeDeclarationType of
         Just declarationType -> case declarationType of
             Declared (TypeDeclaration _ constructors) -> do
                 expressionType <- case constructors of
                     constructor :| [] -> do
-                        (_, fieldTypes) <- getFieldTypes types errors constructor
+                        (_, fieldTypes) <- getFieldTypes report types errors constructor
                         return $ TCustom name $ Just fieldTypes
                     _ -> return $ TCustom name Nothing
                 H.insert types name $ Evaluated expressionType
                 return expressionType
             Evaluated expressionType -> return expressionType
-        Nothing -> return TUndefined
+        Nothing -> do
+            when report $ reportError errors $ Error ("Invalid type annotation: '" ++ name ++ "'\nType does not exist") EOF
+            return TUndefined
 
-annotationToType :: TypeDeclarations s -> STRef s [Error] -> TypeAnnotation -> ST s ExpressionType
-annotationToType types errors annotation =
-    let recurse = annotationToType types errors in case annotation of
+annotationToType :: Bool -> TypeDeclarations s -> STRef s [Error] -> TypeAnnotation -> ST s ExpressionType
+annotationToType report types errors annotation =
+    let recurse = annotationToType report types errors in case annotation of
     ConstantAnnotation name -> case name of
         "Int" -> return TInteger
         "Bool" -> return TBool
         "Char" -> return TChar
         "String" -> return TString
-        _ -> getDeclarationType types errors name
+        _ -> getDeclarationType report types errors name
     FunctionAnnotation paramTypeAnnotations returnTypeAnnotation -> do
         paramTypes <- sequence $ map recurse paramTypeAnnotations
         returnType <- recurse returnTypeAnnotation
@@ -124,7 +126,7 @@ getEnvValue :: TypeDeclarations s -> STRef s [Error] -> Binding -> ST s (String,
 getEnvValue types errors (Binding identifier value _) = do
     annotation <- case value of
         Literal (Lambda _ (Function params returnType _)) ->
-            fmap Just $ annotationToType types errors $ FunctionAnnotation (map snd params) returnType
+            fmap Just $ annotationToType False types errors $ FunctionAnnotation (map snd params) returnType
         _ -> return Nothing
     return (identifier, Untyped value annotation)
 
@@ -202,7 +204,7 @@ inferExpression types env errors expression =
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
             Lambda freeVars (Function params returnAnnotation expr) -> do
-                functionType <- annotationToType types errors $ FunctionAnnotation (map snd params) returnAnnotation
+                functionType <- annotationToType False types errors $ FunctionAnnotation (map snd params) returnAnnotation
                 case functionType of
                     TFunction paramTypes returnType -> do
                         let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
