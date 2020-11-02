@@ -51,14 +51,18 @@ resolveExpression expression = case expression of
             (resolvedTrue, vars2) = resolveExpression true
             (resolvedFalse, vars3) = resolveExpression false
         in (If resolvedCondition resolvedTrue resolvedFalse, vars1 ++ vars2 ++ vars3)
+    CaseOf variable cases ->
+        let (resolvedVariable, vars) = resolveExpression variable
+            (resolvedCases, caseVars) = unzip $ map resolveCase cases
+        in (CaseOf resolvedVariable resolvedCases, vars ++ concat caseVars)
     Binary left op right ->
         let (resolvedLeft, vars1) = resolveExpression left
             (resolvedRight, vars2) = resolveExpression right
         in (Binary resolvedLeft op resolvedRight, vars1 ++ vars2)
     Call callee args ->
         let (resolvedCallee, vars) = resolveExpression callee
-            (resolvedArgs, argsVars) = unzip $ map resolveExpression args
-        in (Call resolvedCallee resolvedArgs, vars ++ (concat argsVars))
+            (resolvedArgs, argVars) = unzip $ map resolveExpression args
+        in (Call resolvedCallee resolvedArgs, vars ++ concat argVars)
     FieldAccess record field ->
         let (resolvedRecord, vars) = resolveExpression record
         in (FieldAccess resolvedRecord field, vars)
@@ -71,3 +75,8 @@ resolveExpression expression = case expression of
         _ -> (expression, [])
     Identifier identifier position -> (expression, [Variable identifier position])
     None -> (None, [])
+
+resolveCase :: Case -> (Case, [Variable])
+resolveCase (Case constructor expression) =
+    let (resolvedExpression, vars) = resolveExpression expression
+    in (Case constructor resolvedExpression, vars)
