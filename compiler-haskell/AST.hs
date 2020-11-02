@@ -56,6 +56,7 @@ instance Show ExpressionType where
 data Expression
     = Let [Binding] Expression
     | If Expression Expression Expression
+    | CaseOf Expression [Case]
     | Binary Expression Operator Expression
     | Call Expression [Expression]
     | FieldAccess Expression String
@@ -63,6 +64,8 @@ data Expression
     | Identifier String Position
     | None
     deriving (Eq, Show)
+
+data Case = Case String Expression deriving (Eq, Show)
 
 data Literal
     = Integer Integer

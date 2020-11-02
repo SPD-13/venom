@@ -348,7 +348,8 @@ primary = do
             variable <- expression
             (next, token) <- consume
             if next == [Of] then do
-                
+                cases <- caseList
+                return $ CaseOf variable cases
             else do
                 reportError "Expecting 'of' after variable in 'case' expression" token
                 return None
@@ -368,3 +369,17 @@ primary = do
         _ -> do
             reportError "Unexpected token" token
             return None
+
+caseList :: State ParserState [Case]
+caseList = peek >>= \case
+    [DataType name] -> do
+        advance 1
+        (next, token) <- consume
+        if next == [Arrow] then do
+            expr <- expression
+            otherCases <- caseList
+            return $ AST.Case name expr : otherCases
+        else do
+            reportError "Expecting '->' after constructor name in 'case' expression" token
+            return []
+    _ -> return []

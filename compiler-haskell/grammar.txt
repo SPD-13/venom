@@ -39,7 +39,7 @@ arguments > expression (COMMA expression)*
 primary
     > LET binding* IN expression
     | IF expression THEN expression ELSE expression
-    | CASE expression OF case+
+    | CASE expression OF case*
     | LEFTPAREN expression RIGHTPAREN
     | LITERAL
     | IDENTIFIER
