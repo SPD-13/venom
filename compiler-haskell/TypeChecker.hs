@@ -164,20 +164,26 @@ inferExpression types env errors expression =
             return (If typedCondition typedTrue typedFalse, trueType)
         CaseOf variable cases -> do
             (typedVariable, variableType) <- ie variable
+            let errorValue = (CaseOf typedVariable cases, TUndefined)
             case variableType of
-                TCustom (TypeInfo _ constructorNames) Nothing -> do
+                TCustom (TypeInfo typeName constructorNames) Nothing -> do
                     let getName (Case name _) = name
                         caseNames = map getName cases
                         checkName name =
                             when (name `notElem` caseNames) $ err $ Error ("Missing constructor '" ++ name ++ "' in 'case' expression") EOF
                     sequence_ $ map checkName constructorNames
-                    return (None, TUndefined)
+                    case cases of
+                        Case name expr : otherCases -> do
+                            when (name `notElem` constructorNames) $ err $ Error ("'" ++ name ++ "' is not a valid constructor for the variable of type '" ++ typeName ++ "'") EOF
+                            (typedExpr, exprType) <- ie expr
+                            return unimplemented
+                        [] -> return errorValue
                 TCustom _ _ -> do
                     err $ Error "Cannot use 'case' expression on variable with only one possible constructor" EOF
-                    return (CaseOf typedVariable cases, TUndefined)
+                    return errorValue
                 _ -> do
                     err $ Error ("Cannot use 'case' expression on built-in type\nGot: " ++ show variableType) EOF
-                    return (CaseOf typedVariable cases, TUndefined)
+                    return errorValue
         Binary left op right -> do
             (typedLeft, leftType) <- ie left
             (typedRight, rightType) <- ie right
