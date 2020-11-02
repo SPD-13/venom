@@ -42,12 +42,18 @@ checkBindings (AST declaredTypes bindings) = do
 
 inferConstructors :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
 inferConstructors types env errors (TypeDeclaration typeName constructors) =
-    sequence_ $ fmap (inferConstructor types env errors typeName) constructors
+    let typeInfo = TypeInfo typeName $ getConstructorNames constructors
+    in sequence_ $ fmap (inferConstructor types env errors typeInfo) constructors
 
-inferConstructor :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> Constructor -> ST s ()
-inferConstructor types env errors typeName constructor@(Constructor name _) = do
+getConstructorNames :: NonEmpty Constructor -> [String]
+getConstructorNames (head :| tail) =
+    let getName (Constructor name _) = name
+    in getName head : map getName tail
+
+inferConstructor :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeInfo -> Constructor -> ST s ()
+inferConstructor types env errors typeInfo constructor@(Constructor name _) = do
     (paramTypes, fieldTypes) <- getFieldTypes True types errors constructor
-    let constructorType = TFunction paramTypes $ TCustom typeName $ Just fieldTypes
+    let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
     set env (name, Typed None constructorType)
 
 getFieldTypes :: Bool -> TypeDeclarations s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
@@ -96,11 +102,12 @@ getDeclarationType report types errors name = do
     case maybeDeclarationType of
         Just declarationType -> case declarationType of
             Declared (TypeDeclaration _ constructors) -> do
+                let typeInfo = TypeInfo name $ getConstructorNames constructors
                 expressionType <- case constructors of
                     constructor :| [] -> do
                         (_, fieldTypes) <- getFieldTypes report types errors constructor
-                        return $ TCustom name $ Just fieldTypes
-                    _ -> return $ TCustom name Nothing
+                        return $ TCustom typeInfo $ Just fieldTypes
+                    _ -> return $ TCustom typeInfo Nothing
                 H.insert types name $ Evaluated expressionType
                 return expressionType
             Evaluated expressionType -> return expressionType
@@ -155,6 +162,22 @@ inferExpression types env errors expression =
             (typedFalse, falseType) <- ie false
             when (trueType /= falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
             return (If typedCondition typedTrue typedFalse, trueType)
+        CaseOf variable cases -> do
+            (typedVariable, variableType) <- ie variable
+            case variableType of
+                TCustom (TypeInfo _ constructorNames) Nothing -> do
+                    let getName (Case name _) = name
+                        caseNames = map getName cases
+                        checkName name =
+                            when (name `notElem` caseNames) $ err $ Error ("Missing constructor '" ++ name ++ "' in 'case' expression") EOF
+                    sequence_ $ map checkName constructorNames
+                    return (None, TUndefined)
+                TCustom _ _ -> do
+                    err $ Error "Cannot use 'case' expression on variable with only one possible constructor" EOF
+                    return (CaseOf typedVariable cases, TUndefined)
+                _ -> do
+                    err $ Error ("Cannot use 'case' expression on built-in type\nGot: " ++ show variableType) EOF
+                    return (CaseOf typedVariable cases, TUndefined)
         Binary left op right -> do
             (typedLeft, leftType) <- ie left
             (typedRight, rightType) <- ie right
@@ -233,5 +256,5 @@ checkArgument errors (index, (argType, paramType)) =
 
 isSubtype :: ExpressionType -> ExpressionType -> Bool
 isSubtype argument parameter = case (argument, parameter) of
-    (TCustom argName _, TCustom paramName _) -> argName == paramName
+    (TCustom (TypeInfo argName _) _, TCustom (TypeInfo paramName _) _) -> argName == paramName
     _ -> argument == parameter

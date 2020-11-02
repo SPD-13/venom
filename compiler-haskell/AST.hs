@@ -36,10 +36,12 @@ data ExpressionType
     | TBool
     | TChar
     | TString
-    | TCustom String (Maybe FieldTypes)
+    | TCustom TypeInfo (Maybe FieldTypes)
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
+
+data TypeInfo = TypeInfo String [String] deriving Eq
 
 type FieldTypes = M.Map String ExpressionType
 
@@ -49,7 +51,7 @@ instance Show ExpressionType where
         TBool -> "Bool"
         TChar -> "Char"
         TString -> "String"
-        TCustom name _ -> name
+        TCustom (TypeInfo name _) _ -> name
         TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
         TUndefined -> "Undefined"
 
