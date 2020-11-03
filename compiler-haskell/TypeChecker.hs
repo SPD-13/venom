@@ -172,12 +172,18 @@ inferExpression types env errors expression =
                         checkName name =
                             when (name `notElem` caseNames) $ err $ Error ("Missing constructor '" ++ name ++ "' in 'case' expression") EOF
                     sequence_ $ map checkName constructorNames
-                    case cases of
-                        Case name expr : otherCases -> do
-                            when (name `notElem` constructorNames) $ err $ Error ("'" ++ name ++ "' is not a valid constructor for the variable of type '" ++ typeName ++ "'") EOF
-                            (typedExpr, exprType) <- ie expr
-                            return unimplemented
-                        [] -> return errorValue
+                    let checkCase (typedCases, returnType) (Case name expr) = do
+                        when (name `notElem` constructorNames) $ err $ Error ("'" ++ name ++ "' is not a valid constructor for the variable of type '" ++ typeName ++ "'") EOF
+                        (typedExpr, exprType) <- ie expr
+                        let returnValue = Case name typedExpr : typedCases
+                        case returnType of
+                            TUndefined -> return (returnValue, exprType)
+                            _ -> do
+                                let errorMessage = "All branches of 'case' expression must return the same type\nExpected: " ++ show returnType ++ "\nGot: " ++ show exprType
+                                when (not $ isSameType exprType returnType) $ err $ Error errorMessage EOF
+                                return (returnValue, returnType)
+                    (typedCases, returnType) <- foldM checkCase ([], TUndefined) cases
+                    return (CaseOf typedVariable $ reverse typedCases, returnType)
                 TCustom _ _ -> do
                     err $ Error "Cannot use 'case' expression on variable with only one possible constructor" EOF
                     return errorValue
@@ -258,9 +264,9 @@ checkArguments errors arguments parameters = do
 
 checkArgument :: STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
 checkArgument errors (index, (argType, paramType)) =
-    when (not $ isSubtype argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
+    when (not $ isSameType argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
 
-isSubtype :: ExpressionType -> ExpressionType -> Bool
-isSubtype argument parameter = case (argument, parameter) of
-    (TCustom (TypeInfo argName _) _, TCustom (TypeInfo paramName _) _) -> argName == paramName
-    _ -> argument == parameter
+isSameType :: ExpressionType -> ExpressionType -> Bool
+isSameType aType bType = case (aType, bType) of
+    (TCustom (TypeInfo aTypeName _) _, TCustom (TypeInfo bTypeName _) _) -> aTypeName == bTypeName
+    _ -> aType == bType
