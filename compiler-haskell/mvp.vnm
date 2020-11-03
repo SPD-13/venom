@@ -1,7 +1,29 @@
-Test = Test(field : String, otherField : Int)
-instance = Test("test", 4)
-field = instance.field
+List = Empty() | Prepend(head : Int, tail : List)
 
+range(n : Int) : List =
+    if n == 0 then
+        Empty()
+    else
+        Prepend(n, range(n - 1))
+testList = range(8)
+makeAdder(n : Int) : (Int)Int =
+    let adder(m : Int) : Int = n + m
+    in adder
+map(function : (Int)Int, list : List) : List =
+    case list of
+        Empty -> Empty()
+        Prepend -> Prepend(function(list.head), map(function, list.tail))
+foldLeft(function : (Int, Int)Int, accumulator : Int, list : List) : Int =
+    case list of
+        Empty -> accumulator
+        Prepend ->
+            let next = function(accumulator, list.head)
+            in foldLeft(function, next, list.tail)
+biggerTestList = map(makeAdder(4), testList)
+add(n : Int, m : Int) : Int = n + m
+sum = foldLeft(add, 0, biggerTestList)
+
+$[
 b = a
 a = 5 + 7
 c = "hello"

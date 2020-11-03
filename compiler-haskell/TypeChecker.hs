@@ -160,7 +160,7 @@ inferExpression types env errors expression =
             when (conditionType /= TBool) $ err $ Error ("Condition of 'if' must be a boolean\nGot: " ++ show conditionType) EOF
             (typedTrue, trueType) <- ie true
             (typedFalse, falseType) <- ie false
-            when (trueType /= falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
+            when (not $ isSameType trueType falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
             return (If typedCondition typedTrue typedFalse, trueType)
         CaseOf variable cases -> do
             (typedVariable, variableType) <- ie variable
@@ -174,7 +174,32 @@ inferExpression types env errors expression =
                     sequence_ $ map checkName constructorNames
                     let checkCase (typedCases, returnType) (Case name expr) = do
                         when (name `notElem` constructorNames) $ err $ Error ("'" ++ name ++ "' is not a valid constructor for the variable of type '" ++ typeName ++ "'") EOF
-                        (typedExpr, exprType) <- ie expr
+                        (typedExpr, exprType) <- case variable of
+                            -- When the variable in a case expression is a single identifier, specialize its type while evaluating the case subexpressions so we can access its fields
+                            Identifier identifier _ -> do
+                                let dummy = (None, TUndefined)
+                                -- TODO: Extract identifier lookup out of 'checkCase'
+                                val <- get identifier env
+                                case val of
+                                    Just ref -> do
+                                        value <- readSTRef ref
+                                        case value of
+                                            Typed typedBinding _ -> do
+                                                constructorVal <- get name env
+                                                case constructorVal of
+                                                    Just constructorRef -> do
+                                                        constructorValue <- readSTRef constructorRef
+                                                        case constructorValue of
+                                                            Typed _ (TFunction _ constructorType) -> do
+                                                                writeSTRef ref $ Typed typedBinding constructorType
+                                                                result <- ie expr
+                                                                writeSTRef ref $ Typed typedBinding variableType
+                                                                return result
+                                                            _ -> return dummy
+                                                    Nothing -> return dummy
+                                            _ -> return dummy
+                                    Nothing -> return dummy
+                            _ -> ie expr
                         let returnValue = Case name typedExpr : typedCases
                         case returnType of
                             TUndefined -> return (returnValue, exprType)
@@ -245,7 +270,7 @@ inferExpression types env errors expression =
                         let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
                         sequence_ $ map (set env . paramToEnv) $ zip (map fst params) paramTypes
                         (typedExpr, exprType) <- ie expr
-                        when (returnType /= exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
+                        when (not $ isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
                         sequence_ $ map (delete env . fst) params
                         return (Literal (Lambda freeVars (Function params returnAnnotation typedExpr)), functionType)
                     _ -> return (expression, TUndefined)

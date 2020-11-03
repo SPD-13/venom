@@ -1,0 +1,12 @@
+Short term roadmap:
+
+Done. Change type of types with only one constructor to always have 'Just constructor' in 'types' dictionary
+Done. Implement subtype check for function parameters / return type
+Done. Add errors for invalid type annotations and force evaluation of unused types
+Done. Add 'case' statements
+5. Implement runtime for types
+Done. Toy around with lists and higher-order functions
+7. Add field accessor functions for mapping
+8. Make records callable to modify certain fields
+9. Check if 'isSameType' should be removed in favor of Eq
+10. Start working on generics
