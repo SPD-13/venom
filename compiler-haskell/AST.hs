@@ -86,7 +86,7 @@ indent string =
     unlines' (map ("  " ++) (lines string))
 
 instance Show AST where
-    show (AST types bindings) =
+    show (AST _ bindings) =
         "Bindings\n" ++ unlines' (map (indent . show) bindings)
 
 instance Show Binding where

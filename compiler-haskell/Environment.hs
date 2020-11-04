@@ -1,13 +1,14 @@
-module Environment (Env, TypeEnv, new, copy, set, setRef, get, delete, Computed(..), Value(..), TypeValue(..)) where
+module Environment (Env, TypeEnv, new, copy, set, setRef, get, delete, Computed(..), Function(..), Value(..), TypeValue(..)) where
 
 import Data.List (intercalate)
+import qualified Data.Map as M
 import Control.Monad.ST
 import Data.STRef
 
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as B
 
-import AST (Expression, ExpressionType, Function(..))
+import AST (Expression, ExpressionType)
 
 type HashTable s k v = B.HashTable s k v
 newtype GenericEnv s v = Env (HashTable s String (STRef s v))
@@ -20,14 +21,22 @@ data Computed s
     | Char Char
     | String String
     | Closure (Env s) Function
+    | Constructor String [String]
+    | Custom String (M.Map String (Computed s))
     | RuntimeError
+
+data Function = Function [String] Expression
 
 instance Show (Computed s) where
     show (Integer a) = show a
     show (Bool a) = show a
     show (Char a) = show a
     show (String a) = show a
-    show (Closure _ (Function params _ _)) = "Closure(" ++ intercalate ", " (map fst params) ++ ")"
+    show (Closure _ (Function params _)) = "Closure(" ++ intercalate ", " params ++ ")"
+    show (Constructor name fieldNames) = "Constructor(" ++ intercalate ", " fieldNames ++ ") for " ++ name
+    show (Custom constructor fields) =
+        let fieldValues = map (show . snd) $ M.toList fields
+        in constructor ++ "(" ++ intercalate ", " fieldValues ++ ")"
     show RuntimeError = "Runtime error"
 
 instance Eq (Computed s) where

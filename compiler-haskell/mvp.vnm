@@ -1,11 +1,11 @@
 List = Empty() | Prepend(head : Int, tail : List)
 
-range(n : Int) : List =
-    if n == 0 then
+range(start : Int, end : Int) : List =
+    if start == end + 1 then
         Empty()
     else
-        Prepend(n, range(n - 1))
-testList = range(8)
+        Prepend(start, range(start + 1, end))
+testList = range(1, 8)
 makeAdder(n : Int) : (Int)Int =
     let adder(m : Int) : Int = n + m
     in adder
@@ -19,9 +19,17 @@ foldLeft(function : (Int, Int)Int, accumulator : Int, list : List) : Int =
         Prepend ->
             let next = function(accumulator, list.head)
             in foldLeft(function, next, list.tail)
+reverse(list : List) : List =
+    let reverseInner(accumulator : List, remaining : List) : List =
+        case remaining of
+            Empty -> accumulator
+            Prepend -> reverseInner(Prepend(remaining.head, accumulator), remaining.tail)
+    in reverseInner(Empty(), list)
 biggerTestList = map(makeAdder(4), testList)
+reversedList = reverse(biggerTestList)
 add(n : Int, m : Int) : Int = n + m
-sum = foldLeft(add, 0, biggerTestList)
+sum = foldLeft(add, 0, reversedList)
+alias = Prepend
 
 $[
 b = a

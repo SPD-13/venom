@@ -47,17 +47,17 @@ inferConstructors types env errors (TypeDeclaration typeName constructors) =
 
 getConstructorNames :: NonEmpty Constructor -> [String]
 getConstructorNames (head :| tail) =
-    let getName (Constructor name _) = name
+    let getName (AST.Constructor name _) = name
     in getName head : map getName tail
 
 inferConstructor :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeInfo -> Constructor -> ST s ()
-inferConstructor types env errors typeInfo constructor@(Constructor name _) = do
+inferConstructor types env errors typeInfo constructor@(AST.Constructor name _) = do
     (paramTypes, fieldTypes) <- getFieldTypes True types errors constructor
     let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
     set env (name, Typed None constructorType)
 
 getFieldTypes :: Bool -> TypeDeclarations s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
-getFieldTypes report types errors (Constructor _ fields) = do
+getFieldTypes report types errors (AST.Constructor _ fields) = do
     let getName (Field fieldName _) = fieldName
         getAnnotation (Field _ annotation) = annotation
     fieldTypes <- sequence $ map (annotationToType report types errors . getAnnotation) fields
@@ -132,7 +132,7 @@ annotationToType report types errors annotation =
 getEnvValue :: TypeDeclarations s -> STRef s [Error] -> Binding -> ST s (String, TypeValue)
 getEnvValue types errors (Binding identifier value _) = do
     annotation <- case value of
-        Literal (Lambda _ (Function params returnType _)) ->
+        Literal (Lambda _ (AST.Function params returnType _)) ->
             fmap Just $ annotationToType False types errors $ FunctionAnnotation (map snd params) returnType
         _ -> return Nothing
     return (identifier, Untyped value annotation)
@@ -196,7 +196,7 @@ inferExpression types env errors expression =
                                                                 writeSTRef ref $ Typed typedBinding variableType
                                                                 return result
                                                             _ -> return dummy
-                                                    Nothing -> return dummy
+                                                    Nothing -> return (expr, TUndefined)
                                             _ -> return dummy
                                     Nothing -> return dummy
                             _ -> ie expr
@@ -263,7 +263,7 @@ inferExpression types env errors expression =
             AST.Bool _ -> return (expression, TBool)
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
-            Lambda freeVars (Function params returnAnnotation expr) -> do
+            Lambda freeVars (AST.Function params returnAnnotation expr) -> do
                 functionType <- annotationToType False types errors $ FunctionAnnotation (map snd params) returnAnnotation
                 case functionType of
                     TFunction paramTypes returnType -> do
@@ -272,7 +272,7 @@ inferExpression types env errors expression =
                         (typedExpr, exprType) <- ie expr
                         when (not $ isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
                         sequence_ $ map (delete env . fst) params
-                        return (Literal (Lambda freeVars (Function params returnAnnotation typedExpr)), functionType)
+                        return (Literal (Lambda freeVars (AST.Function params returnAnnotation typedExpr)), functionType)
                     _ -> return (expression, TUndefined)
         Identifier identifier _ -> do
             identifierType <- inferIdentifier types env errors identifier
