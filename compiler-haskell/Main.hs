@@ -6,6 +6,7 @@ import Parser
 import Resolver
 import TypeChecker
 import Interpreter
+import Transpiler
 
 main :: IO ()
 main = do
@@ -31,3 +32,5 @@ main = do
                                     let result = Interpreter.interpret typeCheckedAST
                                     putStrLn "\n--- Interpreter output ---\n"
                                     putStrLn result
+                                    let js = Transpiler.transpile typeCheckedAST
+                                    writeFile "out.js" js

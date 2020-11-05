@@ -11,7 +11,7 @@ makeAdder(n : Int) : (Int)Int =
     in adder
 map(function : (Int)Int, list : List) : List =
     case list of
-        Empty -> Empty()
+        Empty -> list
         Prepend -> Prepend(function(list.head), map(function, list.tail))
 foldLeft(function : (Int, Int)Int, accumulator : Int, list : List) : Int =
     case list of
@@ -30,6 +30,7 @@ reversedList = reverse(biggerTestList)
 add(n : Int, m : Int) : Int = n + m
 sum = foldLeft(add, 0, reversedList)
 alias = Prepend
+test = alias(4, Empty()).head
 
 $[
 b = a
@@ -62,10 +63,6 @@ isEven(n : Int) : Int =
         isOdd(n - 1)
 
 result2 = isOdd(26)
-
-makeAdder(n : Int) : (Int)Int =
-    let adder(m : Int) : Int = n + m
-    in adder
 
 fn = makeAdder(4)
 result3 = fn(12)

@@ -20,4 +20,4 @@ cat source.vnm | runhaskell Main.hs
 ```
 
 ## Trello
-[Here](https://trello.com/b/DwDQrof7/venom "Trello")
+[Here](https://trello.com/b/DwDQrof7/venom-programming-language "Trello")
