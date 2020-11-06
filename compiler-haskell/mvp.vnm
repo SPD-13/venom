@@ -28,6 +28,7 @@ reverse(list : List) : List =
 biggerTestList = map(makeAdder(4), testList)
 reversedList = reverse(biggerTestList)
 add(n : Int, m : Int) : Int = n + m
+main = sum
 sum = foldLeft(add, 0, reversedList)
 alias = Prepend
 test = alias(4, Empty()).head

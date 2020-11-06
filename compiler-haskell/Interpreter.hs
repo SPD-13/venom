@@ -111,16 +111,15 @@ interpretExpression evaluating env expression =
                         Just value -> return value
                         Nothing -> return E.RuntimeError
                 _ -> return E.RuntimeError
-        Literal literal ->
-            case literal of
-                Integer integer -> return $ E.Integer integer
-                Bool bool -> return $ E.Bool bool
-                Char char -> return $ E.Char char
-                String string -> return $ E.String string
-                Lambda freeVars (Function params _ expr) -> do
-                    closureEnv <- E.new
-                    sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
-                    return $ E.Closure closureEnv $ E.Function (map fst params) expr
+        Literal literal -> case literal of
+            Integer integer -> return $ E.Integer integer
+            Bool bool -> return $ E.Bool bool
+            Char char -> return $ E.Char char
+            String string -> return $ E.String string
+            Lambda freeVars (Function params _ expr) -> do
+                closureEnv <- E.new
+                sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
+                return $ E.Closure closureEnv $ E.Function (map fst params) expr
         Identifier identifier _ -> interpretIdentifier evaluating env identifier
         None -> return E.RuntimeError
 
