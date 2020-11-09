@@ -32,7 +32,6 @@ outputConstructor (Constructor name fields) =
 outputExpression :: Int -> Expression -> String
 outputExpression tabLevel expression =
     let output = outputExpression tabLevel
-        outputIndented = outputExpression $ tabLevel + 2
         base = concat $ replicate tabLevel tab
         single = concat $ replicate (tabLevel + 1) tab
         double = concat $ replicate (tabLevel + 2) tab
@@ -49,9 +48,9 @@ outputExpression tabLevel expression =
             in conditionOutput ++ trueOutput ++ falseOutput
         CaseOf variable cases ->
             let 
-                outputCase previous (Case name expr) = previous ++ "val.constructor === " ++ name ++ " ? " ++ outputIndented expr ++ "\n" ++ double ++ ": "
-                casesOutput = foldl' outputCase "" cases ++ "null"
-            in "(() => {\n" ++ single ++ var ++ "val = " ++ output variable ++ "\n" ++ single ++ "return " ++ casesOutput ++ "\n" ++ base ++ "})()"
+                outputCase previous (Case name expr) = previous ++ "\n" ++ single ++ "case " ++ name ++ ": return " ++ outputExpression (tabLevel + 1) expr
+                casesOutput = foldl' outputCase "" cases
+            in "(() => { switch (" ++ output variable ++ ".constructor) {" ++ casesOutput ++ "\n" ++ base ++ "}})()"
         Binary left op right ->
             let leftOutput = output left
                 rightOutput = output right
@@ -70,7 +69,7 @@ outputExpression tabLevel expression =
                 let header = "(" ++ intercalate ", " (map (toJS . fst) params) ++ ") => "
                     outputSetter (name, _) = "\n" ++ double ++ "set(\"" ++ toJS name ++ "\", " ++ toJS name ++ ")"
                     setters = concatMap outputSetter params
-                    result = "\n" ++ double ++ "return " ++ outputIndented expr
+                    result = "\n" ++ double ++ "return " ++ outputExpression (tabLevel + 2) expr
                     body = "(() => {" ++ setters ++ result ++ "\n" ++ single ++ "})()"
                 in header ++ body
             _ -> ""
