@@ -6,8 +6,8 @@ import AST
 import Operator
 import Position
 
-var = "const "
-tab = "    "
+var = "let "
+tab = "  "
 
 transpile :: AST -> String
 transpile (AST types bindings) =
@@ -27,28 +27,30 @@ outputConstructor (Constructor name fields) =
         params = intercalate ", " fieldNames
         outputSetter fieldName = "\n" ++ tab ++ "this." ++ fieldName ++ " = " ++ fieldName
         setters = concatMap outputSetter fieldNames
-    in "function " ++ name ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
+        constructor = "function " ++ name ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
+        new = var ++ toJS name ++ " = (...args) => new " ++ name ++ "(...args)\n"
+    in constructor ++ new
 
 outputExpression :: Int -> Expression -> String
 outputExpression tabLevel expression =
     let output = outputExpression tabLevel
+        outputIndented = outputExpression $ tabLevel + 1
         base = concat $ replicate tabLevel tab
-        single = concat $ replicate (tabLevel + 1) tab
-        double = concat $ replicate (tabLevel + 2) tab
+        indent = concat $ replicate (tabLevel + 1) tab
     in case expression of
         Let bindings expr ->
-            let outputSetter (Binding name value _) = "\n" ++ single ++ "set(\"" ++ toJS name ++ "\", new $Thunk(() => " ++ output value ++ "))"
+            let outputSetter (Binding name value _) = "\n" ++ indent ++ var ++ toJS name ++ " = " ++ output value
                 setters = concatMap outputSetter bindings
-                result = "\n" ++ single ++ "return " ++ output expr
+                result = "\n" ++ indent ++ "return " ++ output expr
             in "(() => {" ++ setters ++ result ++ "\n" ++ base ++ "})()"
         If condition trueValue falseValue ->
             let conditionOutput = output condition
-                trueOutput = "\n" ++ single ++ "? " ++ output trueValue
-                falseOutput = "\n" ++ single ++ ": " ++ output falseValue
+                trueOutput = "\n" ++ indent ++ "? " ++ output trueValue
+                falseOutput = "\n" ++ indent ++ ": " ++ output falseValue
             in conditionOutput ++ trueOutput ++ falseOutput
         CaseOf variable cases ->
             let 
-                outputCase previous (Case name expr) = previous ++ "\n" ++ single ++ "case " ++ name ++ ": return " ++ outputExpression (tabLevel + 1) expr
+                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ name ++ ": return " ++ outputIndented expr
                 casesOutput = foldl' outputCase "" cases
             in "(() => { switch (" ++ output variable ++ ".constructor) {" ++ casesOutput ++ "\n" ++ base ++ "}})()"
         Binary left op right ->
@@ -67,13 +69,10 @@ outputExpression tabLevel expression =
             Integer integer -> show integer
             Lambda _ (Function params _ expr) ->
                 let header = "(" ++ intercalate ", " (map (toJS . fst) params) ++ ") => "
-                    outputSetter (name, _) = "\n" ++ double ++ "set(\"" ++ toJS name ++ "\", " ++ toJS name ++ ")"
-                    setters = concatMap outputSetter params
-                    result = "\n" ++ double ++ "return " ++ outputExpression (tabLevel + 2) expr
-                    body = "(() => {" ++ setters ++ result ++ "\n" ++ single ++ "})()"
+                    body = outputIndented expr
                 in header ++ body
             _ -> ""
-        Identifier identifier _ -> "get(\"" ++ toJS identifier ++ "\")"
+        Identifier identifier _ -> toJS identifier
         None -> ""
 
 toJS :: String -> String
