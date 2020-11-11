@@ -9,19 +9,19 @@ import AST
 import Operator
 import Position
 
-var = "let "
-tab = "  "
-
 data TranspilerMode = Readable | Minified
 data Settings = Settings
     { identifierToJS :: String -> String
     , constructorToJS :: String -> String
+    , bindingString :: String
+    , spaceString :: String
+    , indentString :: String
+    , newlineString :: String
     }
 
 transpile :: TranspilerMode -> AST -> String
 transpile mode (AST types bindings) =
-    let constructorAlias = "_ = 'constructor'\n"
-        typesIdentifiers = concatMap typeIdentifiers types
+    let typesIdentifiers = concatMap typeIdentifiers types
         globalExpr = Let bindings $ Identifier "main" $ Position 0 0
         bindingsIdentifiers = findIdentifiers globalExpr
         identifiers = S.toList $ S.fromList $ typesIdentifiers ++ bindingsIdentifiers
@@ -30,14 +30,25 @@ transpile mode (AST types bindings) =
             Readable -> Settings
                 { identifierToJS = ('$' :)
                 , constructorToJS = id
+                , bindingString = "const "
+                , spaceString = " "
+                , indentString = "  "
+                , newlineString = "\n"
                 }
             Minified -> Settings
                 { identifierToJS = translate dictionary
                 , constructorToJS = translate dictionary . ('$' :)
+                , bindingString = "let "
+                , spaceString = ""
+                , indentString = ""
+                , newlineString = ""
                 }
+        space = spaceString settings
+        nl = newlineString settings
+        constructorAlias = "_" ++ space ++ "=" ++ space ++ "'constructor';" ++ nl
         constructors = concatMap (outputConstructors settings) types
         app = outputExpression settings 0 globalExpr
-        output = "console.log(" ++ app ++ ")\n"
+        output = "console.log(" ++ app ++ ")" ++ nl
     in constructorAlias ++ constructors ++ output
 
 typeIdentifiers :: TypeDeclaration -> [String]
@@ -58,54 +69,62 @@ outputConstructor :: Settings -> Constructor -> String
 outputConstructor settings (Constructor name fields) =
     let getName (Field fieldName _) = fieldName
         toJS = identifierToJS settings
+        var = bindingString settings
+        space = spaceString settings
+        tab = indentString settings
+        nl = newlineString settings
         fieldNames = map (toJS . getName) fields
-        params = intercalate ", " fieldNames
-        outputSetter fieldName = "\n" ++ tab ++ "this." ++ fieldName ++ " = " ++ fieldName
+        params = intercalate (',' : space) fieldNames
+        outputSetter fieldName = nl ++ tab ++ "this." ++ fieldName ++ space ++ "=" ++ space ++ fieldName ++ ";"
         setters = concatMap outputSetter fieldNames
         typeName = constructorToJS settings name
-        constructor = "function " ++ typeName ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
-        new = var ++ toJS name ++ " = (...args) => new " ++ typeName ++ "(...args)\n"
+        constructor = "function " ++ typeName ++ "(" ++ params ++ ")" ++ space ++ "{" ++ setters ++ nl ++ "}" ++ nl
+        new = var ++ toJS name ++ space ++ "=" ++ space ++ "(...args)" ++ space ++ "=>" ++ space ++ "new " ++ typeName ++ "(...args);" ++ nl
     in constructor ++ new
 
 outputExpression :: Settings -> Int -> Expression -> String
 outputExpression settings tabLevel expression =
     let output = outputExpression settings tabLevel
         outputIndented = outputExpression settings $ tabLevel + 1
+        toJS = identifierToJS settings
+        var = bindingString settings
+        space = spaceString settings
+        tab = indentString settings
+        nl = newlineString settings
         base = concat $ replicate tabLevel tab
         indent = concat $ replicate (tabLevel + 1) tab
-        toJS = identifierToJS settings
     in case expression of
         Let bindings expr ->
-            let outputSetter (Binding name value _) = "\n" ++ indent ++ var ++ toJS name ++ " = " ++ output value
+            let outputSetter (Binding name value _) = nl ++ indent ++ var ++ toJS name ++ space ++ "=" ++ space ++ output value ++ ";"
                 setters = concatMap outputSetter bindings
-                result = "\n" ++ indent ++ "return " ++ output expr
-            in "(() => {" ++ setters ++ result ++ "\n" ++ base ++ "})()"
+                result = nl ++ indent ++ "return " ++ output expr
+            in "(()" ++ space ++ "=>" ++ space ++ "{" ++ setters ++ result ++ nl ++ base ++ "})()"
         If condition trueValue falseValue ->
             let conditionOutput = output condition
-                trueOutput = "\n" ++ indent ++ "? " ++ output trueValue
-                falseOutput = "\n" ++ indent ++ ": " ++ output falseValue
+                trueOutput = nl ++ indent ++ "?" ++ space ++ output trueValue
+                falseOutput = nl ++ indent ++ ":" ++ space ++ output falseValue
             in conditionOutput ++ trueOutput ++ falseOutput
         CaseOf variable cases ->
             let 
-                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ constructorToJS settings name ++ ": return " ++ outputIndented expr
-                casesOutput = foldl' outputCase "" cases
-            in "(() => { switch (" ++ output variable ++ "[_]) {" ++ casesOutput ++ "\n" ++ base ++ "}})()"
+                outputCase (Case name expr) = nl ++ indent ++ "case " ++ constructorToJS settings name ++ ":" ++ space ++ "return " ++ outputIndented expr ++ ";"
+                casesOutput = concatMap outputCase cases
+            in "(()" ++ space ++ "=>" ++ space ++ "{" ++ space ++ "switch" ++ space ++ "(" ++ output variable ++ "[_])" ++ space ++ "{" ++ casesOutput ++ nl ++ base ++ "}})()"
         Binary left op right ->
             let leftOutput = output left
                 rightOutput = output right
             in case op of
-                Plus -> leftOutput ++ " + " ++ rightOutput
-                Equality -> leftOutput ++ " === " ++ rightOutput
+                Plus -> leftOutput ++ space ++ "+" ++ space ++ rightOutput
+                Equality -> leftOutput ++ space ++ "===" ++ space ++ rightOutput
                 _ -> ""
         Call callee arguments ->
             let args = map output arguments
-            in output callee ++ "(" ++ intercalate ", " args ++ ")"
+            in output callee ++ "(" ++ intercalate (',' : space) args ++ ")"
         FieldAccess record field ->
             output record ++ "." ++ toJS field
         Literal literal -> case literal of
             Integer integer -> show integer
             Lambda _ (Function params _ expr) ->
-                let header = "(" ++ intercalate ", " (map (toJS . fst) params) ++ ") => "
+                let header = "(" ++ intercalate (',' : space) (map (toJS . fst) params) ++ ")" ++ space ++ "=>" ++ space
                     body = outputIndented expr
                 in header ++ body
             _ -> ""
