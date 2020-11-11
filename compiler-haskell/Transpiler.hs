@@ -15,31 +15,42 @@ tab = "  "
 transpile :: AST -> String
 transpile (AST types bindings) =
     let constructorAlias = "_ = 'constructor'\n"
-        constructors = concatMap outputConstructors types
+        typesIdentifiers = concatMap typeIdentifiers types
         globalExpr = Let bindings $ Identifier "main" $ Position 0 0
-        identifiers = S.toList $ S.fromList $ findIdentifiers globalExpr
+        bindingsIdentifiers = findIdentifiers globalExpr
+        identifiers = S.toList $ S.fromList $ typesIdentifiers ++ bindingsIdentifiers
         dictionary = M.fromList $ zip identifiers $ iterate nextIdentifierSafe "a"
+        constructors = concatMap (outputConstructors dictionary) types
         app = outputExpression dictionary 0 globalExpr
         output = "console.log(" ++ app ++ ")\n"
     in constructorAlias ++ constructors ++ output
 
-outputConstructors :: TypeDeclaration -> String
-outputConstructors (TypeDeclaration _ constructors) =
-    concatMap outputConstructor constructors
+typeIdentifiers :: TypeDeclaration -> [String]
+typeIdentifiers (TypeDeclaration _ constructors) =
+    concatMap constructorIdentifiers constructors
 
-outputConstructor :: Constructor -> String
-outputConstructor (Constructor name fields) =
+constructorIdentifiers :: Constructor -> [String]
+constructorIdentifiers (Constructor name fields) =
+    let getFieldName (Field fieldName _) = fieldName
+        fieldNames = map getFieldName fields
+    in name : ('$' : name) : fieldNames
+
+outputConstructors :: M.Map String String -> TypeDeclaration -> String
+outputConstructors dictionary (TypeDeclaration _ constructors) =
+    concatMap (outputConstructor dictionary) constructors
+
+outputConstructor :: M.Map String String -> Constructor -> String
+outputConstructor dictionary (Constructor name fields) =
     let getName (Field fieldName _) = fieldName
+        toJS = translate dictionary
         fieldNames = map (toJS . getName) fields
         params = intercalate ", " fieldNames
         outputSetter fieldName = "\n" ++ tab ++ "this." ++ fieldName ++ " = " ++ fieldName
         setters = concatMap outputSetter fieldNames
-        constructor = "function " ++ name ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
-        new = var ++ toJS name ++ " = (...args) => new " ++ name ++ "(...args)\n"
+        typeName = toJS $ '$' : name
+        constructor = "function " ++ typeName ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
+        new = var ++ toJS name ++ " = (...args) => new " ++ typeName ++ "(...args)\n"
     in constructor ++ new
-
-toJS :: String -> String
-toJS = ('$' :)
 
 outputExpression :: M.Map String String -> Int -> Expression -> String
 outputExpression dictionary tabLevel expression =
@@ -61,7 +72,7 @@ outputExpression dictionary tabLevel expression =
             in conditionOutput ++ trueOutput ++ falseOutput
         CaseOf variable cases ->
             let 
-                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ name ++ ": return " ++ outputIndented expr
+                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ toJS ('$' : name) ++ ": return " ++ outputIndented expr
                 casesOutput = foldl' outputCase "" cases
             in "(() => { switch (" ++ output variable ++ "[_]) {" ++ casesOutput ++ "\n" ++ base ++ "}})()"
         Binary left op right ->
