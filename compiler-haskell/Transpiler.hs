@@ -12,16 +12,31 @@ import Position
 var = "let "
 tab = "  "
 
-transpile :: AST -> String
-transpile (AST types bindings) =
+data TranspilerMode = Readable | Minified
+data Settings = Settings
+    { identifierToJS :: String -> String
+    , constructorToJS :: String -> String
+    }
+
+transpile :: TranspilerMode -> AST -> String
+transpile mode (AST types bindings) =
     let constructorAlias = "_ = 'constructor'\n"
         typesIdentifiers = concatMap typeIdentifiers types
         globalExpr = Let bindings $ Identifier "main" $ Position 0 0
         bindingsIdentifiers = findIdentifiers globalExpr
         identifiers = S.toList $ S.fromList $ typesIdentifiers ++ bindingsIdentifiers
         dictionary = M.fromList $ zip identifiers $ iterate nextIdentifierSafe "a"
-        constructors = concatMap (outputConstructors dictionary) types
-        app = outputExpression dictionary 0 globalExpr
+        settings = case mode of
+            Readable -> Settings
+                { identifierToJS = ('$' :)
+                , constructorToJS = id
+                }
+            Minified -> Settings
+                { identifierToJS = translate dictionary
+                , constructorToJS = translate dictionary . ('$' :)
+                }
+        constructors = concatMap (outputConstructors settings) types
+        app = outputExpression settings 0 globalExpr
         output = "console.log(" ++ app ++ ")\n"
     in constructorAlias ++ constructors ++ output
 
@@ -35,30 +50,30 @@ constructorIdentifiers (Constructor name fields) =
         fieldNames = map getFieldName fields
     in name : ('$' : name) : fieldNames
 
-outputConstructors :: M.Map String String -> TypeDeclaration -> String
-outputConstructors dictionary (TypeDeclaration _ constructors) =
-    concatMap (outputConstructor dictionary) constructors
+outputConstructors :: Settings -> TypeDeclaration -> String
+outputConstructors settings (TypeDeclaration _ constructors) =
+    concatMap (outputConstructor settings) constructors
 
-outputConstructor :: M.Map String String -> Constructor -> String
-outputConstructor dictionary (Constructor name fields) =
+outputConstructor :: Settings -> Constructor -> String
+outputConstructor settings (Constructor name fields) =
     let getName (Field fieldName _) = fieldName
-        toJS = translate dictionary
+        toJS = identifierToJS settings
         fieldNames = map (toJS . getName) fields
         params = intercalate ", " fieldNames
         outputSetter fieldName = "\n" ++ tab ++ "this." ++ fieldName ++ " = " ++ fieldName
         setters = concatMap outputSetter fieldNames
-        typeName = toJS $ '$' : name
+        typeName = constructorToJS settings name
         constructor = "function " ++ typeName ++ "(" ++ params ++ ") {" ++ setters ++ "\n}\n"
         new = var ++ toJS name ++ " = (...args) => new " ++ typeName ++ "(...args)\n"
     in constructor ++ new
 
-outputExpression :: M.Map String String -> Int -> Expression -> String
-outputExpression dictionary tabLevel expression =
-    let output = outputExpression dictionary tabLevel
-        outputIndented = outputExpression dictionary $ tabLevel + 1
+outputExpression :: Settings -> Int -> Expression -> String
+outputExpression settings tabLevel expression =
+    let output = outputExpression settings tabLevel
+        outputIndented = outputExpression settings $ tabLevel + 1
         base = concat $ replicate tabLevel tab
         indent = concat $ replicate (tabLevel + 1) tab
-        toJS = translate dictionary
+        toJS = identifierToJS settings
     in case expression of
         Let bindings expr ->
             let outputSetter (Binding name value _) = "\n" ++ indent ++ var ++ toJS name ++ " = " ++ output value
@@ -72,7 +87,7 @@ outputExpression dictionary tabLevel expression =
             in conditionOutput ++ trueOutput ++ falseOutput
         CaseOf variable cases ->
             let 
-                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ toJS ('$' : name) ++ ": return " ++ outputIndented expr
+                outputCase previous (Case name expr) = previous ++ "\n" ++ indent ++ "case " ++ constructorToJS settings name ++ ": return " ++ outputIndented expr
                 casesOutput = foldl' outputCase "" cases
             in "(() => { switch (" ++ output variable ++ "[_]) {" ++ casesOutput ++ "\n" ++ base ++ "}})()"
         Binary left op right ->
