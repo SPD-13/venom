@@ -1,6 +1,6 @@
 module Transpiler where
 
-import Data.List (foldl', intercalate)
+import Data.List (intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
@@ -22,7 +22,7 @@ data Settings = Settings
 transpile :: TranspilerMode -> AST -> String
 transpile mode (AST types bindings) =
     let typesIdentifiers = concatMap typeIdentifiers types
-        globalExpr = Let bindings $ Identifier "main" $ Position 0 0
+        globalExpr = Let bindings $ Identifier "app" $ Position 0 0
         bindingsIdentifiers = findIdentifiers globalExpr
         identifiers = S.toList $ S.fromList $ typesIdentifiers ++ bindingsIdentifiers
         dictionary = M.fromList $ zip identifiers $ iterate nextIdentifierSafe "a"
@@ -48,7 +48,7 @@ transpile mode (AST types bindings) =
         constructorAlias = "_" ++ space ++ "=" ++ space ++ "'constructor';" ++ nl
         constructors = concatMap (outputConstructors settings) types
         app = outputExpression settings 0 globalExpr
-        output = "console.log(" ++ app ++ ")" ++ nl
+        output = "app = " ++ app ++ "\nconsole.log(app)" ++ nl
     in constructorAlias ++ constructors ++ output
 
 typeIdentifiers :: TypeDeclaration -> [String]

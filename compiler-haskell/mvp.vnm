@@ -29,7 +29,7 @@ biggerTestList = map(makeAdder(4), testList)
 reversedList = reverse(biggerTestList)
 add(n : Int, m : Int) : Int = n + m
 sum = foldLeft(add, 0, reversedList)
-main = sum
+app = sum
 
 $[
 b = a

@@ -32,5 +32,5 @@ main = do
                                     let result = Interpreter.interpret typeCheckedAST
                                     putStrLn "\n--- Interpreter output ---\n"
                                     putStrLn result
-                                    let js = Transpiler.transpile Transpiler.Minified typeCheckedAST
+                                    let js = Transpiler.transpile Transpiler.Readable typeCheckedAST
                                     writeFile "out.js" js
