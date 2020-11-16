@@ -11,7 +11,7 @@ data AST
     = AST [TypeDeclaration] [Binding]
 
 data TypeDeclaration
-    = TypeDeclaration String (NonEmpty Constructor)
+    = TypeDeclaration String [String] (NonEmpty Constructor)
     deriving Eq
 
 data Constructor

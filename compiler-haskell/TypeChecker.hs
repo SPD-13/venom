@@ -27,13 +27,13 @@ typeCheck ast = runST $ checkBindings ast
 checkBindings :: AST -> ST s (Either [Error] AST)
 checkBindings (AST declaredTypes bindings) = do
     types <- H.new
-    let declare typeDeclaration@(TypeDeclaration name _) = H.insert types name $ Declared typeDeclaration
-    sequence_ $ map declare declaredTypes
+    let declare typeDeclaration@(TypeDeclaration name _ _) = H.insert types name $ Declared typeDeclaration
+    mapM_ declare declaredTypes
     env <- new
     errors <- newSTRef []
-    sequence_ $ map (inferConstructors types env errors) declaredTypes
-    sequence_ $ map (set env <=< getEnvValue types errors) bindings
-    typedBindings <- sequence $ map (checkIdentifier types env errors . getIdentifier) bindings
+    mapM_ (inferConstructors types env errors) declaredTypes
+    mapM_ (set env <=< getEnvValue types errors) bindings
+    typedBindings <- mapM (checkIdentifier types env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
     if null finalErrors then
         return $ Right $ AST declaredTypes typedBindings
@@ -41,9 +41,9 @@ checkBindings (AST declaredTypes bindings) = do
         return $ Left $ reverse finalErrors
 
 inferConstructors :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
-inferConstructors types env errors (TypeDeclaration typeName constructors) =
+inferConstructors types env errors (TypeDeclaration typeName _ constructors) =
     let typeInfo = TypeInfo typeName $ getConstructorNames constructors
-    in sequence_ $ fmap (inferConstructor types env errors typeInfo) constructors
+    in mapM_ (inferConstructor types env errors typeInfo) constructors
 
 getConstructorNames :: NonEmpty Constructor -> [String]
 getConstructorNames (head :| tail) =
@@ -60,7 +60,7 @@ getFieldTypes :: Bool -> TypeDeclarations s -> STRef s [Error] -> Constructor ->
 getFieldTypes report types errors (AST.Constructor _ fields) = do
     let getName (Field fieldName _) = fieldName
         getAnnotation (Field _ annotation) = annotation
-    fieldTypes <- sequence $ map (annotationToType report types errors . getAnnotation) fields
+    fieldTypes <- mapM (annotationToType report types errors . getAnnotation) fields
     return (fieldTypes, M.fromList $ zip (map getName fields) fieldTypes)
 
 inferIdentifier :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
@@ -101,7 +101,7 @@ getDeclarationType report types errors name = do
     maybeDeclarationType <- H.lookup types name
     case maybeDeclarationType of
         Just declarationType -> case declarationType of
-            Declared (TypeDeclaration _ constructors) -> do
+            Declared (TypeDeclaration _ _ constructors) -> do
                 let typeInfo = TypeInfo name $ getConstructorNames constructors
                 expressionType <- case constructors of
                     constructor :| [] -> do
@@ -125,7 +125,7 @@ annotationToType report types errors annotation =
         "String" -> return TString
         _ -> getDeclarationType report types errors name
     FunctionAnnotation paramTypeAnnotations returnTypeAnnotation -> do
-        paramTypes <- sequence $ map recurse paramTypeAnnotations
+        paramTypes <- mapM recurse paramTypeAnnotations
         returnType <- recurse returnTypeAnnotation
         return $ TFunction paramTypes returnType
 
@@ -150,17 +150,17 @@ inferExpression types env errors expression =
         unimplemented = (expression, TUndefined)
     in case expression of
         Let bindings expr -> do
-            sequence_ $ map (set env <=< getEnvValue types errors) bindings
-            typedBindings <- sequence $ map (checkIdentifier types env errors . getIdentifier) bindings
+            mapM_ (set env <=< getEnvValue types errors) bindings
+            typedBindings <- mapM (checkIdentifier types env errors . getIdentifier) bindings
             (typedExpr, exprType) <- ie expr
-            sequence_ $ map (delete env . getIdentifier) bindings
+            mapM_ (delete env . getIdentifier) bindings
             return (Let typedBindings typedExpr, exprType)
         If condition true false -> do
             (typedCondition, conditionType) <- ie condition
             when (conditionType /= TBool) $ err $ Error ("Condition of 'if' must be a boolean\nGot: " ++ show conditionType) EOF
             (typedTrue, trueType) <- ie true
             (typedFalse, falseType) <- ie false
-            when (not $ isSameType trueType falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
+            unless (isSameType trueType falseType) $ err $ Error ("Both branches of 'if' must have the same type\nTrue type: " ++ show trueType ++ "\nFalse type: " ++ show falseType) EOF
             return (If typedCondition typedTrue typedFalse, trueType)
         CaseOf variable cases -> do
             (typedVariable, variableType) <- ie variable
@@ -171,7 +171,7 @@ inferExpression types env errors expression =
                         caseNames = map getName cases
                         checkName name =
                             when (name `notElem` caseNames) $ err $ Error ("Missing constructor '" ++ name ++ "' in 'case' expression") EOF
-                    sequence_ $ map checkName constructorNames
+                    mapM_ checkName constructorNames
                     let checkCase (typedCases, returnType) (Case name expr) = do
                         when (name `notElem` constructorNames) $ err $ Error ("'" ++ name ++ "' is not a valid constructor for the variable of type '" ++ typeName ++ "'") EOF
                         (typedExpr, exprType) <- case variable of
@@ -205,7 +205,7 @@ inferExpression types env errors expression =
                             TUndefined -> return (returnValue, exprType)
                             _ -> do
                                 let errorMessage = "All branches of 'case' expression must return the same type\nExpected: " ++ show returnType ++ "\nGot: " ++ show exprType
-                                when (not $ isSameType exprType returnType) $ err $ Error errorMessage EOF
+                                unless (isSameType exprType returnType) $ err $ Error errorMessage EOF
                                 return (returnValue, returnType)
                     (typedCases, returnType) <- foldM checkCase ([], TUndefined) cases
                     return (CaseOf typedVariable $ reverse typedCases, returnType)
@@ -228,14 +228,14 @@ inferExpression types env errors expression =
                     when (rightType /= TInteger) $ err $ Error ("Second argument of '-' must be an integer\nGot: " ++ show rightType) EOF
                     return (Binary typedLeft op typedRight, TInteger)
                 Equality -> do
-                    when (leftType /= rightType) $ err $ Error ("Both arguments of '==' must be the same type") EOF
+                    when (leftType /= rightType) $ err $ Error "Both arguments of '==' must be the same type" EOF
                     return (Binary typedLeft op typedRight, TBool)
                 _ -> return unimplemented
         Call callee arguments -> do
             (typedCallee, calleeType) <- ie callee
             case calleeType of
                 TFunction parameterTypes functionType -> do
-                    typedArguments <- sequence $ map ie arguments
+                    typedArguments <- mapM ie arguments
                     checkArguments errors (map snd typedArguments) parameterTypes
                     return (Call typedCallee (map fst typedArguments), functionType)
                 _ -> do
@@ -268,10 +268,10 @@ inferExpression types env errors expression =
                 case functionType of
                     TFunction paramTypes returnType -> do
                         let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
-                        sequence_ $ map (set env . paramToEnv) $ zip (map fst params) paramTypes
+                        mapM_ (set env . paramToEnv) $ zip (map fst params) paramTypes
                         (typedExpr, exprType) <- ie expr
-                        when (not $ isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
-                        sequence_ $ map (delete env . fst) params
+                        unless (isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
+                        mapM_ (delete env . fst) params
                         return (Literal (Lambda freeVars (AST.Function params returnAnnotation typedExpr)), functionType)
                     _ -> return (expression, TUndefined)
         Identifier identifier _ -> do
@@ -285,11 +285,11 @@ checkArguments errors arguments parameters = do
         lenArgs = length arguments
         lenParams = length parameters
     when (lenArgs /= lenParams) $ err $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
-    sequence_ $ map (checkArgument errors) $ zip [1..] $ zip arguments parameters
+    mapM_ (checkArgument errors) $ zip [1..] $ zip arguments parameters
 
 checkArgument :: STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
 checkArgument errors (index, (argType, paramType)) =
-    when (not $ isSameType argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
+    unless (isSameType argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
 
 isSameType :: ExpressionType -> ExpressionType -> Bool
 isSameType aType bType = case (aType, bType) of

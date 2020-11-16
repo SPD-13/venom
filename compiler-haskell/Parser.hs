@@ -58,18 +58,47 @@ types = peek >>= \case
         advance 1
         (next, token) <- consume
         case next of
-            [Equals] -> do
-                maybeCons <- constructor
-                case maybeCons of
-                    Just cons -> do
-                        otherCons <- otherConstructors
-                        otherTypes <- types
-                        return $ TypeDeclaration name (cons :| otherCons) : otherTypes
-                    Nothing -> return []
+            [LeftAngle] -> do
+                generics <- typeGenerics
+                (next, token) <- consume
+                case next of
+                    [Equals] -> typeConstructors name generics
+                    _ -> do
+                        reportError "Expecting '=' after generic types in type declaration" token
+                        return []
+            [Equals] -> typeConstructors name []
             _ -> do
-                reportError "Expecting '=' after identifier in type declaration" token
+                reportError "Expecting '<' or '=' after identifier in type declaration" token
                 return []
     _ -> return []
+
+typeGenerics :: State ParserState [String]
+typeGenerics = do
+    (next, token) <- consume
+    case next of
+        [Token.Identifier name] -> do
+            (next, token) <- consume
+            case next of
+                [Comma] -> do
+                    otherGenerics <- typeGenerics
+                    return $ name : otherGenerics
+                [RightAngle] -> return [name]
+                _ -> do
+                    reportError "Expecting ',' or '>' after identifier in list of generic types" token
+                    return []
+        _ -> do
+            reportError "Expecting identifier after '<' in list of generic types" token
+            return []
+
+typeConstructors :: String -> [String] -> State ParserState [TypeDeclaration]
+typeConstructors name generics = do
+    maybeCons <- constructor
+    case maybeCons of
+        Just cons -> do
+            otherCons <- otherConstructors
+            otherTypes <- types
+            return $ TypeDeclaration name generics (cons :| otherCons) : otherTypes
+        Nothing -> return []
 
 otherConstructors :: State ParserState [Constructor]
 otherConstructors = peek >>= \case
@@ -94,10 +123,10 @@ constructor = do
                     constructorFields <- fields
                     return $ Just $ Constructor name constructorFields
                 _ -> do
-                    reportError "" token
+                    reportError "Expecting '(' to define fields after constructor name in type constructor declaration" token
                     return Nothing
         _ -> do
-            reportError "" token
+            reportError "Expecting type constructor declaration" token
             return Nothing
 
 fields :: State ParserState [Field]

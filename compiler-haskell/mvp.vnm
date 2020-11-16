@@ -1,6 +1,7 @@
-List = Empty() | Prepend(head : Int, tail : List)
+List<element> = Empty() | Prepend(head : element, tail : List<element>)
+Result<failure, success> = Failure(value : failure) | Success(value : success)
 
-range(start : Int, end : Int) : List =
+range(start : Int, end : Int) : List<Int> =
     if start == end + 1 then
         Empty()
     else
@@ -9,18 +10,18 @@ testList = range(1, 8)
 makeAdder(n : Int) : (Int)Int =
     let adder(m : Int) : Int = n + m
     in adder
-map(function : (Int)Int, list : List) : List =
+map<input, output>(function : (input)output, list : List<input>) : List<output> =
     case list of
         Empty -> list
         Prepend -> Prepend(function(list.head), map(function, list.tail))
-foldLeft(function : (Int, Int)Int, accumulator : Int, list : List) : Int =
+foldLeft<element, result>(function : (result, element)result, accumulator : result, list : List<element>) : result =
     case list of
         Empty -> accumulator
         Prepend ->
             let next = function(accumulator, list.head)
             in foldLeft(function, next, list.tail)
-reverse(list : List) : List =
-    let reverseInner(accumulator : List, remaining : List) : List =
+reverse<element>(list : List<element>) : List<element> =
+    let reverseInner<element>(accumulator : List<element>, remaining : List<element>) : List<element> =
         case remaining of
             Empty -> accumulator
             Prepend -> reverseInner(Prepend(remaining.head, accumulator), remaining.tail)

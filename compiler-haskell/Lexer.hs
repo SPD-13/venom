@@ -100,18 +100,11 @@ parseToken state input length tokenType =
         , genericDrop length input
         )
 
-parseIdentifier state input =
+parseIdentifier = parseTag matchKeyword
+parseDataType = parseTag DataType
+parseTag tagString state input =
     let (word, rest) = span isAlphaNum input
-        tokenType = matchKeyword word
-        token = Token tokenType (getPosition state)
-    in
-        ( state { currentColumn = currentColumn state + genericLength word, tokens = token : tokens state }
-        , rest
-        )
-
-parseDataType state input =
-    let (word, rest) = span isAlphaNum input
-        tokenType = DataType word
+        tokenType = tagString word
         token = Token tokenType (getPosition state)
     in
         ( state { currentColumn = currentColumn state + genericLength word, tokens = token : tokens state }

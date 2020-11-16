@@ -52,7 +52,7 @@ transpile mode (AST types bindings) =
     in constructorAlias ++ constructors ++ output
 
 typeIdentifiers :: TypeDeclaration -> [String]
-typeIdentifiers (TypeDeclaration _ constructors) =
+typeIdentifiers (TypeDeclaration _ _ constructors) =
     concatMap constructorIdentifiers constructors
 
 constructorIdentifiers :: Constructor -> [String]
@@ -62,7 +62,7 @@ constructorIdentifiers (Constructor name fields) =
     in name : ('$' : name) : fieldNames
 
 outputConstructors :: Settings -> TypeDeclaration -> String
-outputConstructors settings (TypeDeclaration _ constructors) =
+outputConstructors settings (TypeDeclaration _ _ constructors) =
     concatMap (outputConstructor settings) constructors
 
 outputConstructor :: Settings -> Constructor -> String
