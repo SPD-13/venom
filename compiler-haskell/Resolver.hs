@@ -26,7 +26,7 @@ resolve (AST types bindings) =
         Left $ map reportError undefinedErrors
 
 getConstructors :: TypeDeclaration -> [String]
-getConstructors (TypeDeclaration _ (cons :| otherCons)) =
+getConstructors (TypeDeclaration _ _ (cons :| otherCons)) =
     let getName (Constructor name _) = name
     in getName cons : map getName otherCons
 
@@ -67,11 +67,11 @@ resolveExpression expression = case expression of
         let (resolvedRecord, vars) = resolveExpression record
         in (FieldAccess resolvedRecord field, vars)
     Literal literal -> case literal of
-        Lambda _ (Function params returnType expr) ->
+        Function _ genericParams params returnType expr ->
             let (resolvedExpression, vars) = resolveExpression expr
-                freeVars = filter ((`notElem` (map fst params)) . name) vars
+                freeVars = filter ((`notElem` map fst params) . name) vars
                 freeNames = map name freeVars
-            in (Literal (Lambda freeNames (Function params returnType resolvedExpression)), freeVars)
+            in (Literal $ Function freeNames genericParams params returnType resolvedExpression, freeVars)
         _ -> (expression, [])
     Identifier identifier position -> (expression, [Variable identifier position])
     None -> (None, [])

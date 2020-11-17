@@ -21,7 +21,7 @@ foldLeft<element, result>(function : (result, element)result, accumulator : resu
             let next = function(accumulator, list.head)
             in foldLeft(function, next, list.tail)
 reverse<element>(list : List<element>) : List<element> =
-    let reverseInner<element>(accumulator : List<element>, remaining : List<element>) : List<element> =
+    let reverseInner(accumulator : List<element>, remaining : List<element>) : List<element> =
         case remaining of
             Empty -> accumulator
             Prepend -> reverseInner(Prepend(remaining.head, accumulator), remaining.tail)

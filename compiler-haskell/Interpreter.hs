@@ -25,7 +25,7 @@ interpretAST (AST types bindings) = do
     return $ intercalate "\n" $ map (\(Binding i _ t, v) -> i ++ " : " ++ show t ++ " = " ++ show v) $ zip bindings values
 
 registerConstructors :: E.Env s -> TypeDeclaration -> ST s ()
-registerConstructors env (TypeDeclaration _ constructors) =
+registerConstructors env (TypeDeclaration _ _ constructors) =
     let getFieldName (Field fieldName _) = fieldName
         registerConstructor (Constructor name fields) =
             let constructor = E.Constructor name $ map getFieldName fields
@@ -116,7 +116,7 @@ interpretExpression evaluating env expression =
             Bool bool -> return $ E.Bool bool
             Char char -> return $ E.Char char
             String string -> return $ E.String string
-            Lambda freeVars (Function params _ expr) -> do
+            Function freeVars _ params _ expr -> do
                 closureEnv <- E.new
                 sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
                 return $ E.Closure closureEnv $ E.Function (map fst params) expr

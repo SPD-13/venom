@@ -1,18 +1,26 @@
 program > type_declaration* binding*
 
-type_declaration > DATA_TYPE EQUALS constructor
+type_declaration > DATA_TYPE generic_params? EQUALS constructors
+
+generic_params > LEFT_ANGLE IDENTIFIER (COMMA IDENTIFIER)* RIGHT_ANGLE
+
+constructors > constructor (UNION constructor)*
 
 constructor > DATA_TYPE LEFT_PAREN parameters? RIGHT_PAREN
 
 binding > (function | constant) EQUALS expression
 
-function > IDENTIFIER LEFT_PAREN parameters? RIGHT_PAREN COLON type_annotation
+function > IDENTIFIER generic_params? LEFT_PAREN parameters? RIGHT_PAREN COLON type_annotation
 
 parameters > parameter (COMMA parameter)*
 
 parameter > IDENTIFIER COLON type_annotation
 
-type_annotation > BASE_TYPE | function_annotation
+type_annotation > constant_annotation | function_annotation
+
+constant_annotation > IDENTIFIER | DATA_TYPE generic_args?
+
+generic_args > LEFT_ANGLE param_types RIGHT_ANGLE
 
 function_annotation > LEFT_PAREN param_types? RIGHT_PAREN type_annotation
 

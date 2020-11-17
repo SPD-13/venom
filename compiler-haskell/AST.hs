@@ -7,11 +7,14 @@ import qualified Data.Map as M
 import Operator
 import Position
 
+type GenericParameter = String
+type FreeVariable = String
+
 data AST
     = AST [TypeDeclaration] [Binding]
 
 data TypeDeclaration
-    = TypeDeclaration String [String] (NonEmpty Constructor)
+    = TypeDeclaration String [GenericParameter] (NonEmpty Constructor)
     deriving Eq
 
 data Constructor
@@ -27,7 +30,7 @@ data Binding
     deriving Eq
 
 data TypeAnnotation
-    = ConstantAnnotation String
+    = ConstantAnnotation String [TypeAnnotation]
     | FunctionAnnotation [TypeAnnotation] TypeAnnotation
     deriving (Eq, Show)
 
@@ -74,10 +77,8 @@ data Literal
     | Bool Bool
     | Char Char
     | String String
-    | Lambda [String] Function
+    | Function [FreeVariable] [GenericParameter] [(String, TypeAnnotation)] TypeAnnotation Expression
     deriving (Eq, Show)
-
-data Function = Function [(String, TypeAnnotation)] TypeAnnotation Expression deriving (Eq, Show)
 
 unlines' = init . unlines
 

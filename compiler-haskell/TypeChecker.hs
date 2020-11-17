@@ -118,7 +118,7 @@ getDeclarationType report types errors name = do
 annotationToType :: Bool -> TypeDeclarations s -> STRef s [Error] -> TypeAnnotation -> ST s ExpressionType
 annotationToType report types errors annotation =
     let recurse = annotationToType report types errors in case annotation of
-    ConstantAnnotation name -> case name of
+    ConstantAnnotation name _ -> case name of
         "Int" -> return TInteger
         "Bool" -> return TBool
         "Char" -> return TChar
@@ -132,7 +132,7 @@ annotationToType report types errors annotation =
 getEnvValue :: TypeDeclarations s -> STRef s [Error] -> Binding -> ST s (String, TypeValue)
 getEnvValue types errors (Binding identifier value _) = do
     annotation <- case value of
-        Literal (Lambda _ (AST.Function params returnType _)) ->
+        Literal (AST.Function _ _ params returnType _) ->
             fmap Just $ annotationToType False types errors $ FunctionAnnotation (map snd params) returnType
         _ -> return Nothing
     return (identifier, Untyped value annotation)
@@ -263,7 +263,7 @@ inferExpression types env errors expression =
             AST.Bool _ -> return (expression, TBool)
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
-            Lambda freeVars (AST.Function params returnAnnotation expr) -> do
+            AST.Function freeVars genericParams params returnAnnotation expr -> do
                 functionType <- annotationToType False types errors $ FunctionAnnotation (map snd params) returnAnnotation
                 case functionType of
                     TFunction paramTypes returnType -> do
@@ -272,7 +272,7 @@ inferExpression types env errors expression =
                         (typedExpr, exprType) <- ie expr
                         unless (isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
                         mapM_ (delete env . fst) params
-                        return (Literal (Lambda freeVars (AST.Function params returnAnnotation typedExpr)), functionType)
+                        return (Literal $ AST.Function freeVars genericParams params returnAnnotation typedExpr, functionType)
                     _ -> return (expression, TUndefined)
         Identifier identifier _ -> do
             identifierType <- inferIdentifier types env errors identifier

@@ -56,38 +56,41 @@ types :: State ParserState [TypeDeclaration]
 types = peek >>= \case
     [DataType name] -> do
         advance 1
+        generics <- genericParams
         (next, token) <- consume
         case next of
-            [LeftAngle] -> do
-                generics <- typeGenerics
-                (next, token) <- consume
-                case next of
-                    [Equals] -> typeConstructors name generics
-                    _ -> do
-                        reportError "Expecting '=' after generic types in type declaration" token
-                        return []
-            [Equals] -> typeConstructors name []
+            [Equals] -> typeConstructors name generics
             _ -> do
-                reportError "Expecting '<' or '=' after identifier in type declaration" token
+                let error = case generics of
+                        [] -> "Expecting '<' or '=' after identifier in type declaration"
+                        _ -> "Expecting '=' after generic parameters in type declaration"
+                reportError error token
                 return []
     _ -> return []
 
-typeGenerics :: State ParserState [String]
-typeGenerics = do
+genericParams :: State ParserState [GenericParameter]
+genericParams = peek >>= \case
+    [LeftAngle] -> do
+        advance 1
+        recurseGenericParams "<"
+    _ -> return []
+
+recurseGenericParams :: String -> State ParserState [GenericParameter]
+recurseGenericParams previousChar = do
     (next, token) <- consume
     case next of
         [Token.Identifier name] -> do
             (next, token) <- consume
             case next of
                 [Comma] -> do
-                    otherGenerics <- typeGenerics
-                    return $ name : otherGenerics
+                    otherParams <- recurseGenericParams ","
+                    return $ name : otherParams
                 [RightAngle] -> return [name]
                 _ -> do
-                    reportError "Expecting ',' or '>' after identifier in list of generic types" token
-                    return []
+                    reportError "Expecting ',' or '>' after identifier in list of generic parameters" token
+                    return [name]
         _ -> do
-            reportError "Expecting identifier after '<' in list of generic types" token
+            reportError ("Expecting identifier after '" ++ previousChar ++ "' in list of generic parameters") token
             return []
 
 typeConstructors :: String -> [String] -> State ParserState [TypeDeclaration]
@@ -168,37 +171,45 @@ bindings :: State ParserState [Binding]
 bindings = peek >>= \case
     [Token.Identifier identifier] -> do
         advance 1
-        (next, token) <- consume
-        case next of
-            [Equals] -> constant identifier
-            [LeftParen] -> function identifier
-            _ -> do
-                reportError "Expecting '=' or '(' after identifier in binding" token
-                return []
+        peek >>= \case
+            [Equals] -> do
+                advance 1
+                constant identifier
+            _ -> function identifier
     _ -> return []
 
 function :: String -> State ParserState [Binding]
 function identifier = do
-    params <- parameters
+    generics <- genericParams
     (next, token) <- consume
     case next of
-        [Colon] -> do
-            maybeAnnotation <- typeAnnotation
-            case maybeAnnotation of
-                Just annotation -> do
-                    (next, token) <- consume
-                    case next of
-                        [Equals] -> do
-                            expr <- expression
-                            let binding = Binding identifier (Literal (Lambda [] (Function params annotation expr))) TUndefined
-                            otherBindings <- bindings
-                            return $ binding : otherBindings
-                        _ -> do
-                            reportError "Expecting '=' after return type in function definition" token
-                            return []
-                Nothing -> return []
+        [LeftParen] -> do
+            params <- parameters
+            (next, token) <- consume
+            case next of
+                [Colon] -> do
+                    maybeAnnotation <- typeAnnotation
+                    case maybeAnnotation of
+                        Just annotation -> do
+                            (next, token) <- consume
+                            case next of
+                                [Equals] -> do
+                                    expr <- expression
+                                    let binding = Binding identifier (Literal $ Function [] generics params annotation expr) TUndefined
+                                    otherBindings <- bindings
+                                    return $ binding : otherBindings
+                                _ -> do
+                                    reportError "Expecting '=' after return type in function definition" token
+                                    return []
+                        Nothing -> return []
+                _ -> do
+                    reportError "Expecting annotation of return type after parameters in function definition" token
+                    return []
         _ -> do
-            reportError "Expecting annotation of return type after parameters in function definition" token
+            let error = case generics of
+                    [] -> "Expecting '=', '<' or '(' after identifier in binding"
+                    _ -> "Expecting '(' after generic parameters in function definition"
+            reportError error token
             return []
 
 parameters :: State ParserState [(String, TypeAnnotation)]
@@ -240,11 +251,37 @@ typeAnnotation :: State ParserState (Maybe TypeAnnotation)
 typeAnnotation = do
     (next, token) <- consume
     case next of
-        [DataType name] -> return $ Just $ ConstantAnnotation name
+        [Token.Identifier name] -> return $ Just $ ConstantAnnotation name []
+        [DataType name] -> do
+            genericArguments <- genericArgs
+            return $ Just $ ConstantAnnotation name genericArguments
         [LeftParen] -> functionType
         _ -> do
             reportError "Invalid type annotation" token
             return Nothing
+
+genericArgs :: State ParserState [TypeAnnotation]
+genericArgs = peek >>= \case
+    [LeftAngle] -> do
+        advance 1
+        recurseGenericArgs
+    _ -> return []
+
+recurseGenericArgs :: State ParserState [TypeAnnotation]
+recurseGenericArgs = do
+    maybeAnnotation <- typeAnnotation
+    case maybeAnnotation of
+        Just annotation -> do
+            (next, token) <- consume
+            case next of
+                [Comma] -> do
+                    otherArgs <- recurseGenericArgs
+                    return $ annotation : otherArgs
+                [RightAngle] -> return [annotation]
+                _ -> do
+                    reportError "Expecting ',' or '>' after generic argument in type annotation" token
+                    return [annotation]
+        Nothing -> return []
 
 functionType :: State ParserState (Maybe TypeAnnotation)
 functionType = do

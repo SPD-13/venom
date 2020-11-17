@@ -123,7 +123,7 @@ outputExpression settings tabLevel expression =
             output record ++ "." ++ toJS field
         Literal literal -> case literal of
             Integer integer -> show integer
-            Lambda _ (Function params _ expr) ->
+            Function _ _ params _ expr ->
                 let header = "(" ++ intercalate (',' : space) (map (toJS . fst) params) ++ ")" ++ space ++ "=>" ++ space
                     body = outputIndented expr
                 in header ++ body
@@ -154,7 +154,7 @@ findIdentifiers expression = case expression of
     FieldAccess record _ ->
         findIdentifiers record
     Literal literal -> case literal of
-        Lambda _ (Function params _ expr) ->
+        Function _ _ params _ expr ->
             map fst params ++ findIdentifiers expr
         _ -> []
     Identifier _ _ -> []
