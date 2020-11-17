@@ -10,29 +10,16 @@ import Position
 type GenericParameter = String
 type FreeVariable = String
 
-data AST
-    = AST [TypeDeclaration] [Binding]
-
-data TypeDeclaration
-    = TypeDeclaration String [GenericParameter] (NonEmpty Constructor)
-    deriving Eq
-
-data Constructor
-    = Constructor String [Field]
-    deriving Eq
-
-data Field
-    = Field String TypeAnnotation
-    deriving Eq
-
-data Binding
-    = Binding String Expression ExpressionType
-    deriving Eq
+data AST = AST [TypeDeclaration] [Binding]
+data TypeDeclaration = TypeDeclaration String [GenericParameter] (NonEmpty Constructor)
+data Constructor = Constructor String [Field]
+data Field = Field String TypeAnnotation
+data Binding = Binding String Expression ExpressionType
 
 data TypeAnnotation
     = ConstantAnnotation String [TypeAnnotation]
     | FunctionAnnotation [TypeAnnotation] TypeAnnotation
-    deriving (Eq, Show)
+    deriving Show
 
 data ExpressionType
     = TInteger
@@ -68,9 +55,9 @@ data Expression
     | Literal Literal
     | Identifier String Position
     | None
-    deriving (Eq, Show)
+    deriving Show
 
-data Case = Case String Expression deriving (Eq, Show)
+data Case = Case String Expression deriving Show
 
 data Literal
     = Integer Integer
@@ -78,7 +65,7 @@ data Literal
     | Char Char
     | String String
     | Function [FreeVariable] [GenericParameter] [(String, TypeAnnotation)] TypeAnnotation Expression
-    deriving (Eq, Show)
+    deriving Show
 
 unlines' = init . unlines
 

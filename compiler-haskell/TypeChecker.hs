@@ -90,7 +90,7 @@ checkIdentifier types env errors identifier = do
                 Untyped expr maybeAnnotation -> do
                     (typedExpr, exprType) <- inferExpression types env errors expr
                     let annotation = fromMaybe exprType maybeAnnotation
-                    when (annotation /= exprType) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
+                    unless (isSameType exprType annotation) $ reportError errors $ Error ("Type annotation does not match inferred type\nGot: " ++ show exprType) EOF
                     writeSTRef ref $ Typed typedExpr annotation
                     return $ Binding identifier typedExpr annotation
                 Typed expr eType -> return $ Binding identifier expr eType
@@ -270,7 +270,7 @@ inferExpression types env errors expression =
                         let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
                         mapM_ (set env . paramToEnv) $ zip (map fst params) paramTypes
                         (typedExpr, exprType) <- ie expr
-                        unless (isSameType returnType exprType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
+                        unless (isSameType exprType returnType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
                         mapM_ (delete env . fst) params
                         return (Literal $ AST.Function freeVars genericParams params returnAnnotation typedExpr, functionType)
                     _ -> return (expression, TUndefined)

@@ -42,7 +42,7 @@ resolveExpression expression = case expression of
     Let bindings expr ->
         let (resolvedBindings, bindingVars) = unzip $ map resolveBinding bindings
             (resolvedExpression, expressionVars) = resolveExpression expr
-            vars = expressionVars ++ (concat bindingVars)
+            vars = expressionVars ++ concat bindingVars
             bindingNames = map getIdentifier bindings
             freeVars = filter ((`notElem` bindingNames) . name) vars
         in (Let resolvedBindings resolvedExpression, freeVars)
