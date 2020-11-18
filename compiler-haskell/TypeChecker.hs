@@ -16,10 +16,7 @@ import Operator
 import Environment
 
 type HashTable s k v = B.HashTable s k v
-type TypeDeclarations s = HashTable s String DeclarationType
-data DeclarationType
-    = Declared TypeDeclaration
-    | Evaluated ExpressionType
+type Types s = HashTable s String ExpressionType
 
 typeCheck :: AST -> Either [Error] AST
 typeCheck ast = runST $ checkBindings ast
@@ -27,10 +24,17 @@ typeCheck ast = runST $ checkBindings ast
 checkBindings :: AST -> ST s (Either [Error] AST)
 checkBindings (AST declaredTypes bindings) = do
     types <- H.new
-    let declare typeDeclaration@(TypeDeclaration name _ _) = H.insert types name $ Declared typeDeclaration
-    mapM_ declare declaredTypes
     env <- new
     errors <- newSTRef []
+    let declare (TypeDeclaration name _ constructors) = do
+        let typeInfo = TypeInfo name $ getConstructorNames constructors
+        expressionType <- case constructors of
+            constructor :| [] -> do
+                (_, fieldTypes) <- getFieldTypes False types errors constructor
+                return $ TCustom typeInfo $ Just fieldTypes
+            _ -> return $ TCustom typeInfo Nothing
+        H.insert types name expressionType
+    mapM_ declare declaredTypes
     mapM_ (inferConstructors types env errors) declaredTypes
     mapM_ (set env <=< getEnvValue types errors) bindings
     typedBindings <- mapM (checkIdentifier types env errors . getIdentifier) bindings
@@ -40,7 +44,7 @@ checkBindings (AST declaredTypes bindings) = do
     else
         return $ Left $ reverse finalErrors
 
-inferConstructors :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
+inferConstructors :: Types s -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
 inferConstructors types env errors (TypeDeclaration typeName _ constructors) =
     let typeInfo = TypeInfo typeName $ getConstructorNames constructors
     in mapM_ (inferConstructor types env errors typeInfo) constructors
@@ -50,20 +54,20 @@ getConstructorNames (head :| tail) =
     let getName (AST.Constructor name _) = name
     in getName head : map getName tail
 
-inferConstructor :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> TypeInfo -> Constructor -> ST s ()
+inferConstructor :: Types s -> TypeEnv s -> STRef s [Error] -> TypeInfo -> Constructor -> ST s ()
 inferConstructor types env errors typeInfo constructor@(AST.Constructor name _) = do
     (paramTypes, fieldTypes) <- getFieldTypes True types errors constructor
     let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
     set env (name, Typed None constructorType)
 
-getFieldTypes :: Bool -> TypeDeclarations s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
+getFieldTypes :: Bool -> Types s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
 getFieldTypes report types errors (AST.Constructor _ fields) = do
     let getName (Field fieldName _) = fieldName
         getAnnotation (Field _ annotation) = annotation
     fieldTypes <- mapM (annotationToType report types errors . getAnnotation) fields
     return (fieldTypes, M.fromList $ zip (map getName fields) fieldTypes)
 
-inferIdentifier :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
+inferIdentifier :: Types s -> TypeEnv s -> STRef s [Error] -> String -> ST s ExpressionType
 inferIdentifier types env errors identifier = do
     val <- get identifier env
     let dummy = TUndefined
@@ -79,7 +83,7 @@ inferIdentifier types env errors identifier = do
                 Typed _ exprType -> return exprType
         Nothing -> return dummy
 
-checkIdentifier :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> String -> ST s Binding
+checkIdentifier :: Types s -> TypeEnv s -> STRef s [Error] -> String -> ST s Binding
 checkIdentifier types env errors identifier = do
     val <- get identifier env
     let dummy = Binding "" None TUndefined
@@ -96,26 +100,16 @@ checkIdentifier types env errors identifier = do
                 Typed expr eType -> return $ Binding identifier expr eType
         Nothing -> return dummy
 
-getDeclarationType :: Bool -> TypeDeclarations s -> STRef s [Error] -> String -> ST s ExpressionType
+getDeclarationType :: Bool -> Types s -> STRef s [Error] -> String -> ST s ExpressionType
 getDeclarationType report types errors name = do
     maybeDeclarationType <- H.lookup types name
     case maybeDeclarationType of
-        Just declarationType -> case declarationType of
-            Declared (TypeDeclaration _ _ constructors) -> do
-                let typeInfo = TypeInfo name $ getConstructorNames constructors
-                expressionType <- case constructors of
-                    constructor :| [] -> do
-                        (_, fieldTypes) <- getFieldTypes report types errors constructor
-                        return $ TCustom typeInfo $ Just fieldTypes
-                    _ -> return $ TCustom typeInfo Nothing
-                H.insert types name $ Evaluated expressionType
-                return expressionType
-            Evaluated expressionType -> return expressionType
+        Just exprType -> return exprType
         Nothing -> do
             when report $ reportError errors $ Error ("Invalid type annotation: '" ++ name ++ "'\nType does not exist") EOF
             return TUndefined
 
-annotationToType :: Bool -> TypeDeclarations s -> STRef s [Error] -> TypeAnnotation -> ST s ExpressionType
+annotationToType :: Bool -> Types s -> STRef s [Error] -> TypeAnnotation -> ST s ExpressionType
 annotationToType report types errors annotation =
     let recurse = annotationToType report types errors in case annotation of
     ConstantAnnotation name _ -> case name of
@@ -129,7 +123,7 @@ annotationToType report types errors annotation =
         returnType <- recurse returnTypeAnnotation
         return $ TFunction paramTypes returnType
 
-getEnvValue :: TypeDeclarations s -> STRef s [Error] -> Binding -> ST s (String, TypeValue)
+getEnvValue :: Types s -> STRef s [Error] -> Binding -> ST s (String, TypeValue)
 getEnvValue types errors (Binding identifier value _) = do
     annotation <- case value of
         Literal (AST.Function _ _ params returnType _) ->
@@ -143,7 +137,7 @@ getIdentifier (Binding identifier _ _) = identifier
 reportError :: STRef s [Error] -> Error -> ST s ()
 reportError errors error = modifySTRef errors (error:)
 
-inferExpression :: TypeDeclarations s -> TypeEnv s -> STRef s [Error] -> Expression -> ST s (Expression, ExpressionType)
+inferExpression :: Types s -> TypeEnv s -> STRef s [Error] -> Expression -> ST s (Expression, ExpressionType)
 inferExpression types env errors expression =
     let ie = inferExpression types env errors
         err = reportError errors

@@ -19,9 +19,9 @@ getIdentifier (Binding identifier _ _) = identifier
 interpretAST :: AST -> ST s String
 interpretAST (AST types bindings) = do
     env <- E.new
-    sequence_ $ map (registerConstructors env) types
-    sequence_ $ map (E.set env . getEnvValue) bindings
-    values <- sequence $ map (interpretIdentifier [] env . getIdentifier) bindings
+    mapM_ (registerConstructors env) types
+    mapM_ (E.set env . getEnvValue) bindings
+    values <- mapM (interpretIdentifier [] env . getIdentifier) bindings
     return $ intercalate "\n" $ map (\(Binding i _ t, v) -> i ++ " : " ++ show t ++ " = " ++ show v) $ zip bindings values
 
 registerConstructors :: E.Env s -> TypeDeclaration -> ST s ()
@@ -30,7 +30,7 @@ registerConstructors env (TypeDeclaration _ _ constructors) =
         registerConstructor (Constructor name fields) =
             let constructor = E.Constructor name $ map getFieldName fields
             in E.set env (name, E.Computed constructor)
-    in sequence_ $ fmap registerConstructor constructors
+    in mapM_ registerConstructor constructors
 
 interpretIdentifier :: [String] -> E.Env s -> String -> ST s (E.Computed s)
 interpretIdentifier evaluating env identifier = do
@@ -51,9 +51,9 @@ interpretExpression evaluating env expression =
     let eval = interpretExpression evaluating env
     in case expression of
         Let bindings expr -> do
-            sequence_ $ map (E.set env . getEnvValue) bindings
+            mapM_ (E.set env . getEnvValue) bindings
             result <- eval expr
-            sequence_ $ map (E.delete env . getIdentifier) bindings
+            mapM_ (E.delete env . getIdentifier) bindings
             return result
         If condition trueValue falseValue -> do
             result <- eval condition
@@ -93,12 +93,12 @@ interpretExpression evaluating env expression =
             concreteCallee <- eval callee
             case concreteCallee of
                 E.Closure closureEnv (E.Function params expr) -> do
-                    concreteArguments <- sequence $ map eval arguments
+                    concreteArguments <- mapM eval arguments
                     functionEnv <- E.copy closureEnv
-                    sequence_ $ map (E.set functionEnv) $ zip params $ map E.Computed concreteArguments
+                    mapM_ (E.set functionEnv) $ zip params $ map E.Computed concreteArguments
                     interpretExpression [] functionEnv expr
                 E.Constructor name fieldNames -> do
-                    concreteArguments <- sequence $ map eval arguments
+                    concreteArguments <- mapM eval arguments
                     let fields = M.fromList $ zip fieldNames concreteArguments
                     return $ E.Custom name fields
                 _ -> return E.RuntimeError
@@ -118,7 +118,7 @@ interpretExpression evaluating env expression =
             String string -> return $ E.String string
             Function freeVars _ params _ expr -> do
                 closureEnv <- E.new
-                sequence_ $ map (resolveFreeVariable evaluating env closureEnv) freeVars
+                mapM_ (resolveFreeVariable evaluating env closureEnv) freeVars
                 return $ E.Closure closureEnv $ E.Function (map fst params) expr
         Identifier identifier _ -> interpretIdentifier evaluating env identifier
         None -> return E.RuntimeError

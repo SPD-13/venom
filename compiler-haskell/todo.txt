@@ -6,6 +6,8 @@ Parser:
 Resolver:
     Add error checks for recursion in non-function bindings (separate recursion checking pass?)
     Add checks for shadowing / multiple declarations / ambiguity
+EvaluationSorter:
+    Order type declarations (single constructor dependencies)
 TypeChecker:
     Add proper location for errors
     Report error for invalid annotations
