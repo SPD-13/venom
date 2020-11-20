@@ -4,7 +4,6 @@ import Control.Monad
 import Control.Monad.ST
 import Data.STRef
 import qualified Data.Map as M
-import Data.Maybe
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
 
 import qualified Data.HashTable.Class as H
@@ -13,10 +12,15 @@ import qualified Data.HashTable.ST.Basic as B
 import AST
 import Error
 import Operator
-import Environment
 
 type HashTable s k v = B.HashTable s k v
 type Types s = HashTable s String ExpressionType
+type TypeEnv s = HashTable s String TypeValue
+data TypeValue
+    = Untyped Expression
+    | Typed Expression ExpressionType
+
+set env = uncurry $ H.insert env
 
 typeCheck :: AST -> Either [Error] AST
 typeCheck ast = runST $ checkBindings ast
@@ -24,7 +28,7 @@ typeCheck ast = runST $ checkBindings ast
 checkBindings :: AST -> ST s (Either [Error] AST)
 checkBindings (AST declaredTypes bindings) = do
     types <- H.new
-    env <- new
+    env <- H.new
     errors <- newSTRef []
     let declare (TypeDeclaration typeName typeParams constructors) = do
         let insertParam param = H.insert types param $ TParameter param
@@ -57,7 +61,7 @@ checkBindings (AST declaredTypes bindings) = do
 inferConstructor :: ([ExpressionType], FieldTypes) -> TypeEnv s -> TypeInfo -> String -> ST s ()
 inferConstructor (paramTypes, fieldTypes) env typeInfo name = do
     let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
-    set env (name, Typed None constructorType)
+    H.insert env name $ Typed None constructorType
 
 getFieldTypes :: Types s -> STRef s [Error] -> [Field] -> ST s ([ExpressionType], FieldTypes)
 getFieldTypes types errors fields = do
@@ -68,17 +72,15 @@ getFieldTypes types errors fields = do
 
 checkIdentifier :: Types s -> TypeEnv s -> STRef s [Error] -> String -> ST s Binding
 checkIdentifier types env errors identifier = do
-    val <- get identifier env
+    val <- H.lookup env identifier
     let dummy = Binding "" None TUndefined
     case val of
-        Just ref -> do
-            value <- readSTRef ref
-            case value of
-                Untyped expr -> do
-                    (typedExpr, exprType) <- inferExpression types env errors identifier expr
-                    writeSTRef ref $ Typed typedExpr exprType
-                    return $ Binding identifier typedExpr exprType
-                Typed expr eType -> return $ Binding identifier expr eType
+        Just value -> case value of
+            Untyped expr -> do
+                (typedExpr, exprType) <- inferExpression types env errors identifier expr
+                H.insert env identifier $ Typed typedExpr exprType
+                return $ Binding identifier typedExpr exprType
+            Typed expr eType -> return $ Binding identifier expr eType
         Nothing -> return dummy
 
 getDeclarationType :: Types s -> STRef s [Error] -> String -> ST s ExpressionType
@@ -124,7 +126,7 @@ inferExpression types env errors evaluating expression =
             mapM_ (set env . getEnvValue) bindings
             typedBindings <- mapM (checkIdentifier types env errors . getIdentifier) bindings
             (typedExpr, exprType) <- ie expr
-            mapM_ (delete env . getIdentifier) bindings
+            mapM_ (H.delete env . getIdentifier) bindings
             return (Let typedBindings typedExpr, exprType)
         If condition true false -> do
             (typedCondition, conditionType) <- ie condition
@@ -150,25 +152,21 @@ inferExpression types env errors evaluating expression =
                             Identifier identifier _ -> do
                                 let dummy = (None, TUndefined)
                                 -- TODO: Extract identifier lookup out of 'checkCase'
-                                val <- get identifier env
+                                val <- H.lookup env identifier
                                 case val of
-                                    Just ref -> do
-                                        value <- readSTRef ref
-                                        case value of
-                                            Typed typedBinding _ -> do
-                                                constructorVal <- get name env
-                                                case constructorVal of
-                                                    Just constructorRef -> do
-                                                        constructorValue <- readSTRef constructorRef
-                                                        case constructorValue of
-                                                            Typed _ (TFunction _ constructorType) -> do
-                                                                writeSTRef ref $ Typed typedBinding constructorType
-                                                                result <- ie expr
-                                                                writeSTRef ref $ Typed typedBinding variableType
-                                                                return result
-                                                            _ -> return dummy
-                                                    Nothing -> return (expr, TUndefined)
-                                            _ -> return dummy
+                                    Just value -> case value of
+                                        Typed typedBinding _ -> do
+                                            constructorVal <- H.lookup env name
+                                            case constructorVal of
+                                                Just constructorValue -> case constructorValue of
+                                                    Typed _ (TFunction _ constructorType) -> do
+                                                        H.insert env identifier $ Typed typedBinding constructorType
+                                                        result <- ie expr
+                                                        H.insert env identifier $ Typed typedBinding variableType
+                                                        return result
+                                                    _ -> return dummy
+                                                Nothing -> return (expr, TUndefined)
+                                        _ -> return dummy
                                     Nothing -> return dummy
                             _ -> ie expr
                         let returnValue = Case name typedExpr : typedCases
@@ -238,14 +236,12 @@ inferExpression types env errors evaluating expression =
                 functionType <- annotationToType types errors $ FunctionAnnotation (map snd params) returnAnnotation
                 case functionType of
                     TFunction paramTypes returnType -> do
-                        -- TODO: This will create a new STRef which is bad
-                        -- Remove STRef indirection?
-                        set env (evaluating, Typed None functionType)
+                        H.insert env evaluating $ Typed None functionType
                         let paramToEnv ((identifier, _), paramType) = (identifier, Typed None paramType)
                         mapM_ (set env . paramToEnv) $ zip params paramTypes
                         (typedExpr, exprType) <- ie expr
                         unless (isSameType exprType returnType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
-                        mapM_ (delete env . fst) params
+                        mapM_ (H.delete env . fst) params
                         return (Literal $ AST.Function freeVars genericParams params returnAnnotation typedExpr, functionType)
                     _ -> return dummy
         Identifier identifier _ -> do
