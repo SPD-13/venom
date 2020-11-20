@@ -5,7 +5,7 @@ import Control.Monad.ST
 import Data.STRef
 import qualified Data.Map as M
 import Data.Maybe
-import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.List.NonEmpty (NonEmpty((:|)), toList)
 
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as B
@@ -26,16 +26,26 @@ checkBindings (AST declaredTypes bindings) = do
     types <- H.new
     env <- new
     errors <- newSTRef []
-    let declare (TypeDeclaration name _ constructors) = do
-        let typeInfo = TypeInfo name $ getConstructorNames constructors
-        expressionType <- case constructors of
-            constructor :| [] -> do
-                (_, fieldTypes) <- getFieldTypes False types errors constructor
-                return $ TCustom typeInfo $ Just fieldTypes
-            _ -> return $ TCustom typeInfo Nothing
-        H.insert types name expressionType
+    let declare (TypeDeclaration typeName typeParams constructors) = do
+        let insertParam param = H.insert types param $ TParameter param
+            getName (AST.Constructor name _) = name
+            typeInfo = TypeInfo typeName typeParams $ toList $ fmap getName constructors
+            insertType maybeFieldTypes = H.insert types typeName $ TCustom typeInfo maybeFieldTypes
+            getTypes = getFieldTypes True types errors
+        mapM_ insertParam typeParams
+        case constructors of
+            (AST.Constructor name fields) :| [] -> do
+                result@(_, fieldTypes) <- getTypes fields
+                inferConstructor result env typeInfo name
+                insertType $ Just fieldTypes
+            _ -> do
+                insertType Nothing
+                let infer (AST.Constructor name fields) = do
+                    result <- getTypes fields
+                    inferConstructor result env typeInfo name
+                mapM_ infer constructors
+        mapM_ (H.delete types) typeParams
     mapM_ declare declaredTypes
-    mapM_ (inferConstructors types env errors) declaredTypes
     mapM_ (set env <=< getEnvValue types errors) bindings
     typedBindings <- mapM (checkIdentifier types env errors . getIdentifier) bindings
     finalErrors <- readSTRef errors
@@ -44,24 +54,13 @@ checkBindings (AST declaredTypes bindings) = do
     else
         return $ Left $ reverse finalErrors
 
-inferConstructors :: Types s -> TypeEnv s -> STRef s [Error] -> TypeDeclaration -> ST s ()
-inferConstructors types env errors (TypeDeclaration typeName _ constructors) =
-    let typeInfo = TypeInfo typeName $ getConstructorNames constructors
-    in mapM_ (inferConstructor types env errors typeInfo) constructors
-
-getConstructorNames :: NonEmpty Constructor -> [String]
-getConstructorNames (head :| tail) =
-    let getName (AST.Constructor name _) = name
-    in getName head : map getName tail
-
-inferConstructor :: Types s -> TypeEnv s -> STRef s [Error] -> TypeInfo -> Constructor -> ST s ()
-inferConstructor types env errors typeInfo constructor@(AST.Constructor name _) = do
-    (paramTypes, fieldTypes) <- getFieldTypes True types errors constructor
+inferConstructor :: ([ExpressionType], FieldTypes) -> TypeEnv s -> TypeInfo -> String -> ST s ()
+inferConstructor (paramTypes, fieldTypes) env typeInfo name = do
     let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
     set env (name, Typed None constructorType)
 
-getFieldTypes :: Bool -> Types s -> STRef s [Error] -> Constructor -> ST s ([ExpressionType], FieldTypes)
-getFieldTypes report types errors (AST.Constructor _ fields) = do
+getFieldTypes :: Bool -> Types s -> STRef s [Error] -> [Field] -> ST s ([ExpressionType], FieldTypes)
+getFieldTypes report types errors fields = do
     let getName (Field fieldName _) = fieldName
         getAnnotation (Field _ annotation) = annotation
     fieldTypes <- mapM (annotationToType report types errors . getAnnotation) fields
@@ -160,7 +159,7 @@ inferExpression types env errors expression =
             (typedVariable, variableType) <- ie variable
             let errorValue = (CaseOf typedVariable cases, TUndefined)
             case variableType of
-                TCustom (TypeInfo typeName constructorNames) Nothing -> do
+                TCustom (TypeInfo typeName _ constructorNames) Nothing -> do
                     let getName (Case name _) = name
                         caseNames = map getName cases
                         checkName name =
@@ -258,7 +257,7 @@ inferExpression types env errors expression =
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
             AST.Function freeVars genericParams params returnAnnotation expr -> do
-                functionType <- annotationToType False types errors $ FunctionAnnotation (map snd params) returnAnnotation
+                functionType <- annotationToType True types errors $ FunctionAnnotation (map snd params) returnAnnotation
                 case functionType of
                     TFunction paramTypes returnType -> do
                         let paramToEnv (identifier, paramType) = (identifier, Typed None paramType)
@@ -287,5 +286,5 @@ checkArgument errors (index, (argType, paramType)) =
 
 isSameType :: ExpressionType -> ExpressionType -> Bool
 isSameType aType bType = case (aType, bType) of
-    (TCustom (TypeInfo aTypeName _) _, TCustom (TypeInfo bTypeName _) _) -> aTypeName == bTypeName
+    (TCustom (TypeInfo aTypeName _ _) _, TCustom (TypeInfo bTypeName _ _) _) -> aTypeName == bTypeName
     _ -> aType == bType

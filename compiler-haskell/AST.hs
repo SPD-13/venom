@@ -8,6 +8,7 @@ import Operator
 import Position
 
 type GenericParameter = String
+type ConstructorName = String
 type FreeVariable = String
 
 data AST = AST [TypeDeclaration] [Binding]
@@ -27,11 +28,12 @@ data ExpressionType
     | TChar
     | TString
     | TCustom TypeInfo (Maybe FieldTypes)
+    | TParameter String
     | TFunction [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
 
-data TypeInfo = TypeInfo String [String] deriving Eq
+data TypeInfo = TypeInfo String [GenericParameter] [ConstructorName] deriving Eq
 
 type FieldTypes = M.Map String ExpressionType
 
@@ -41,7 +43,8 @@ instance Show ExpressionType where
         TBool -> "Bool"
         TChar -> "Char"
         TString -> "String"
-        TCustom (TypeInfo name _) _ -> name
+        TCustom (TypeInfo name _ _) _ -> name
+        TParameter name -> name
         TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
         TUndefined -> "Undefined"
 

@@ -1,5 +1,5 @@
-App<state, event> = App(initialState : state, update : (event, state)state, view : (state)Html)
-State = State(counter : Int = 0, text : String)
+App<state, event> = App(initialState: state, update: (event, state)state, view: (state)Html)
+State = State(counter: Int = 0, text: String)
 Event = Increment | Decrement
 
 app = App(
@@ -8,12 +8,12 @@ app = App(
     view = view
 )
 
-update(event : Event, state : State) : State =
+update(event: Event, state: State): State =
     case event of
         Increment -> state(counter = state.counter + 1)
         Decrement -> state(counter = state.counter - 1)
 
-view(state : State) : Html =
+view(state: State): Html =
     let text = Div(children = [Text(state.text)])
         label = Div(children = [Text(state.counter>toString())])
         up = Div(children = [Text("+")], onClick = Increment)
