@@ -49,7 +49,7 @@ data Value s
     | Computed (Computed s)
 
 data TypeValue
-    = Untyped Expression (Maybe ExpressionType)
+    = Untyped Expression
     | Typed Expression ExpressionType
 
 new :: ST s (GenericEnv s v)
