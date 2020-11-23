@@ -14,8 +14,16 @@ import Error
 import Operator
 
 type HashTable s k v = B.HashTable s k v
+
+-- Used to resolve type annotations
 type Types s = HashTable s String ExpressionType
+
+-- Used to resolve the type of identifiers
 type TypeEnv s = HashTable s String TypeValue
+
+-- Used to unify generic parameters
+type TypeArgs s = HashTable s String (Maybe ExpressionType)
+
 data TypeValue
     = Untyped Expression
     | Typed Expression ExpressionType
@@ -60,7 +68,7 @@ checkBindings (AST declaredTypes bindings) = do
 
 inferConstructor :: ([ExpressionType], FieldTypes) -> TypeEnv s -> TypeInfo -> String -> ST s ()
 inferConstructor (paramTypes, fieldTypes) env typeInfo name = do
-    let constructorType = TFunction paramTypes $ TCustom typeInfo $ Just fieldTypes
+    let constructorType = TFunction [] paramTypes $ TCustom typeInfo $ Just fieldTypes
     H.insert env name $ Typed None constructorType
 
 getFieldTypes :: Types s -> STRef s [Error] -> [Field] -> ST s ([ExpressionType], FieldTypes)
@@ -101,10 +109,10 @@ annotationToType types errors annotation =
         "Char" -> return TChar
         "String" -> return TString
         _ -> getDeclarationType types errors name
-    FunctionAnnotation paramTypeAnnotations returnTypeAnnotation -> do
+    FunctionAnnotation genericParams paramTypeAnnotations returnTypeAnnotation -> do
         paramTypes <- mapM recurse paramTypeAnnotations
         returnType <- recurse returnTypeAnnotation
-        return $ TFunction paramTypes returnType
+        return $ TFunction genericParams paramTypes returnType
 
 getEnvValue :: Binding -> (String, TypeValue)
 getEnvValue (Binding identifier value _) = (identifier, Untyped value)
@@ -159,7 +167,7 @@ inferExpression types env errors evaluating expression =
                                             constructorVal <- H.lookup env name
                                             case constructorVal of
                                                 Just constructorValue -> case constructorValue of
-                                                    Typed _ (TFunction _ constructorType) -> do
+                                                    Typed _ (TFunction _ _ constructorType) -> do
                                                         H.insert env identifier $ Typed typedBinding constructorType
                                                         result <- ie expr
                                                         H.insert env identifier $ Typed typedBinding variableType
@@ -203,9 +211,10 @@ inferExpression types env errors evaluating expression =
         Call callee arguments -> do
             (typedCallee, calleeType) <- ie callee
             case calleeType of
-                TFunction parameterTypes functionType -> do
+                TFunction genericParams parameterTypes functionType -> do
                     typedArguments <- mapM ie arguments
-                    checkArguments errors (map snd typedArguments) parameterTypes
+                    genericArgs <- H.fromList $ zip genericParams $ repeat Nothing
+                    checkArguments genericArgs errors (map snd typedArguments) parameterTypes
                     return (Call typedCallee (map fst typedArguments), functionType)
                 _ -> do
                     err $ Error ("Callee must be a function\nGot: " ++ show calleeType) EOF
@@ -233,15 +242,19 @@ inferExpression types env errors evaluating expression =
             AST.Char _ -> return (expression, TChar)
             AST.String _ -> return (expression, TString)
             AST.Function freeVars genericParams params returnAnnotation expr -> do
-                functionType <- annotationToType types errors $ FunctionAnnotation (map snd params) returnAnnotation
+                let insertParam param = H.insert types param $ TParameter param
+                mapM_ insertParam genericParams
+                functionType <- annotationToType types errors $ FunctionAnnotation genericParams (map snd params) returnAnnotation
                 case functionType of
-                    TFunction paramTypes returnType -> do
+                    TFunction _ paramTypes returnType -> do
                         H.insert env evaluating $ Typed None functionType
                         let paramToEnv ((identifier, _), paramType) = (identifier, Typed None paramType)
                         mapM_ (set env . paramToEnv) $ zip params paramTypes
                         (typedExpr, exprType) <- ie expr
-                        unless (isSameType exprType returnType) $ err $ Error ("Function body does not match the annotated return type\nGot: " ++ show exprType) EOF
+                        let error = Error ("Function body does not match the annotated return type\nGot: " ++ show exprType ++ "\nExpected: " ++ show returnType) EOF
+                        unless (isSameType exprType returnType) $ err error
                         mapM_ (H.delete env . fst) params
+                        mapM_ (H.delete types) genericParams
                         return (Literal $ AST.Function freeVars genericParams params returnAnnotation typedExpr, functionType)
                     _ -> return dummy
         Identifier identifier _ -> do
@@ -249,17 +262,27 @@ inferExpression types env errors evaluating expression =
             return (expression, identifierType)
         None -> return (None, TUndefined)
 
-checkArguments :: STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
-checkArguments errors arguments parameters = do
-    let err = reportError errors
-        lenArgs = length arguments
+checkArguments :: TypeArgs s -> STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
+checkArguments typeArgs errors arguments parameters = do
+    let lenArgs = length arguments
         lenParams = length parameters
-    when (lenArgs /= lenParams) $ err $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
-    mapM_ (checkArgument errors) $ zip [1..] $ zip arguments parameters
+    when (lenArgs /= lenParams) $ reportError errors $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
+    mapM_ (checkArgument typeArgs errors) $ zip [1..] $ zip arguments parameters
 
-checkArgument :: STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
-checkArgument errors (index, (argType, paramType)) =
-    unless (isSameType argType paramType) $ reportError errors $ Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
+checkArgument :: TypeArgs s -> STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
+checkArgument typeArgs errors (index, (argType, paramType)) = do
+    resolvedParamType <- resolveTypeParams typeArgs errors argType paramType
+    let error = Error ("Argument " ++ show index ++ " should be '" ++ show resolvedParamType ++ "' but got '" ++ show argType ++ "'") EOF
+    unless (isSameType argType resolvedParamType) $ reportError errors error
+
+resolveTypeParams :: TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ExpressionType
+resolveTypeParams typeArgs errors argType paramType = do
+    case paramType of
+        TParameter genericParam -> do
+            return TUndefined
+        TFunction _ _ _ -> do
+            return TUndefined
+        _ -> return paramType
 
 isSameType :: ExpressionType -> ExpressionType -> Bool
 isSameType aType bType = case (aType, bType) of

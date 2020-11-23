@@ -287,7 +287,7 @@ functionType :: State ParserState (Maybe TypeAnnotation)
 functionType = do
     params <- parameterTypes
     returnType <- typeAnnotation
-    return $ FunctionAnnotation params <$> returnType
+    return $ FunctionAnnotation [] params <$> returnType
 
 parameterTypes :: State ParserState [TypeAnnotation]
 parameterTypes = peek >>= \case

@@ -19,7 +19,7 @@ data Binding = Binding String Expression ExpressionType
 
 data TypeAnnotation
     = ConstantAnnotation String [TypeAnnotation]
-    | FunctionAnnotation [TypeAnnotation] TypeAnnotation
+    | FunctionAnnotation [GenericParameter] [TypeAnnotation] TypeAnnotation
     deriving Show
 
 data ExpressionType
@@ -29,7 +29,7 @@ data ExpressionType
     | TString
     | TCustom TypeInfo (Maybe FieldTypes)
     | TParameter String
-    | TFunction [ExpressionType] ExpressionType
+    | TFunction [GenericParameter] [ExpressionType] ExpressionType
     | TUndefined
     deriving Eq
 
@@ -45,7 +45,9 @@ instance Show ExpressionType where
         TString -> "String"
         TCustom (TypeInfo name _ _) _ -> name
         TParameter name -> name
-        TFunction paramTypes functionType -> "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show functionType
+        TFunction genericParams paramTypes returnType ->
+            let generics = if null genericParams then "" else "<" ++ intercalate ", " genericParams ++ ">"
+            in generics ++ "(" ++ intercalate ", " (map show paramTypes) ++ ")" ++ show returnType
         TUndefined -> "Undefined"
 
 data Expression
