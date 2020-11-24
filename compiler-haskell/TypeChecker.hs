@@ -211,11 +211,12 @@ inferExpression types env errors evaluating expression =
         Call callee arguments -> do
             (typedCallee, calleeType) <- ie callee
             case calleeType of
-                TFunction genericParams parameterTypes functionType -> do
+                TFunction genericParams parameterTypes returnType -> do
                     typedArguments <- mapM ie arguments
                     genericArgs <- H.fromList $ zip genericParams $ repeat Nothing
                     checkArguments genericArgs errors (map snd typedArguments) parameterTypes
-                    return (Call typedCallee (map fst typedArguments), functionType)
+                    resolvedReturnType <- resolveTypeParams genericArgs TUndefined returnType
+                    return (Call typedCallee (map fst typedArguments), resolvedReturnType)
                 _ -> do
                     err $ Error ("Callee must be a function\nGot: " ++ show calleeType) EOF
                     return (Call typedCallee arguments, TUndefined)
@@ -271,17 +272,30 @@ checkArguments typeArgs errors arguments parameters = do
 
 checkArgument :: TypeArgs s -> STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
 checkArgument typeArgs errors (index, (argType, paramType)) = do
-    resolvedParamType <- resolveTypeParams typeArgs errors argType paramType
+    resolvedParamType <- resolveTypeParams typeArgs argType paramType
     let error = Error ("Argument " ++ show index ++ " should be '" ++ show resolvedParamType ++ "' but got '" ++ show argType ++ "'") EOF
     unless (isSameType argType resolvedParamType) $ reportError errors error
 
-resolveTypeParams :: TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ExpressionType
-resolveTypeParams typeArgs errors argType paramType = do
+resolveTypeParams :: TypeArgs s -> ExpressionType -> ExpressionType -> ST s ExpressionType
+resolveTypeParams typeArgs argType paramType =
     case paramType of
         TParameter genericParam -> do
-            return TUndefined
-        TFunction _ _ _ -> do
-            return TUndefined
+            lookupResult <- H.lookup typeArgs genericParam
+            case lookupResult of
+                Just maybeArg -> case maybeArg of
+                    Just arg -> return arg
+                    Nothing -> do
+                        H.insert typeArgs genericParam $ Just argType
+                        return argType
+                Nothing -> return paramType
+        TFunction genericParams paramTypes returnType -> case argType of
+            TFunction _ paramTypes' returnType' ->
+                if length paramTypes' == length paramTypes then do
+                    paramTypes'' <- zipWithM (resolveTypeParams typeArgs) paramTypes' paramTypes
+                    returnType'' <- resolveTypeParams typeArgs returnType' returnType
+                    return $ TFunction genericParams paramTypes'' returnType''
+                else return paramType
+            _ -> return paramType
         _ -> return paramType
 
 isSameType :: ExpressionType -> ExpressionType -> Bool

@@ -22,7 +22,7 @@ interpretAST (AST types bindings) = do
     mapM_ (registerConstructors env) types
     mapM_ (E.set env . getEnvValue) bindings
     values <- mapM (interpretIdentifier [] env . getIdentifier) bindings
-    return $ intercalate "\n" $ map (\(Binding i _ t, v) -> i ++ " : " ++ show t ++ " = " ++ show v) $ zip bindings values
+    return $ intercalate "\n" $ map (\(Binding i _ t, v) -> i ++ ": " ++ show t ++ " = " ++ show v) $ zip bindings values
 
 registerConstructors :: E.Env s -> TypeDeclaration -> ST s ()
 registerConstructors env (TypeDeclaration _ _ constructors) =

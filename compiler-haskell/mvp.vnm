@@ -1,34 +1,40 @@
-List<element> = Empty() | Prepend(head : element, tail : List<element>)
-Result<failure, success> = Failure(value : failure) | Success(value : success)
+List<element> = Empty() | Prepend(head: element, tail: List<element>)
+Result<failure, success> = Failure(value: failure) | Success(value: success)
 
-range(start : Int, end : Int) : List<Int> =
+id<a>(var: a): a = var
+pickFirst<a, b>(var1: a, var2: b): a = id(var1)
+pickSecond<a, b>(var1: a, var2: b): b = pickFirst(var2, var1)
+app = pickSecond(4, 8)
+
+$[
+range(start: Int, end: Int): List<Int> =
     if start == end + 1 then
         Empty()
     else
         Prepend(start, range(start + 1, end))
 testList = range(1, 8)
-makeAdder(n : Int) : (Int)Int =
-    let adder(m : Int) : Int = n + m
+makeAdder(n: Int): (Int)Int =
+    let adder(m: Int): Int = n + m
     in adder
-map<input, output>(function : (input)output, list : List<input>) : List<output> =
+map<input, output>(function: (input)output, list: List<input>): List<output> =
     case list of
         Empty -> list
         Prepend -> Prepend(function(list.head), map(function, list.tail))
-foldLeft<element, result>(function : (result, element)result, accumulator : result, list : List<element>) : result =
+foldLeft<element, result>(function: (result, element)result, accumulator: result, list: List<element>): result =
     case list of
         Empty -> accumulator
         Prepend ->
             let next = function(accumulator, list.head)
             in foldLeft(function, next, list.tail)
-reverse<element>(list : List<element>) : List<element> =
-    let reverseInner(accumulator : List<element>, remaining : List<element>) : List<element> =
+reverse<element>(list: List<element>): List<element> =
+    let reverseInner(accumulator: List<element>, remaining: List<element>): List<element> =
         case remaining of
             Empty -> accumulator
             Prepend -> reverseInner(Prepend(remaining.head, accumulator), remaining.tail)
     in reverseInner(Empty(), list)
 biggerTestList = map(makeAdder(4), testList)
 reversedList = reverse(biggerTestList)
-add(n : Int, m : Int) : Int = n + m
+add(n: Int, m: Int): Int = n + m
 sum = foldLeft(add, 0, reversedList)
 app = sum
 
@@ -37,10 +43,10 @@ b = a
 a = 5 + 7
 c = "hello"
 e = 'f'
-id(var : String) : String = var
+id(var: String): String = var
 g = id("Hello!")
 
-fibonacci(n : Int) : Int =
+fibonacci(n: Int): Int =
     if n == 0 then
         0
     else if n == 1 then
@@ -50,13 +56,13 @@ fibonacci(n : Int) : Int =
 
 result = fibonacci(11)
 
-isOdd(n : Int) : Int =
+isOdd(n: Int): Int =
     if n == 0 then
         0
     else
         isEven(n - 1)
 
-isEven(n : Int) : Int =
+isEven(n: Int): Int =
     if n == 0 then
         1
     else
