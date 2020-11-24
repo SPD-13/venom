@@ -4,7 +4,23 @@ Result<failure, success> = Failure(value: failure) | Success(value: success)
 id<a>(var: a): a = var
 pickFirst<a, b>(var1: a, var2: b): a = id(var1)
 pickSecond<a, b>(var1: a, var2: b): b = pickFirst(var2, var1)
-app = pickSecond(4, 8)
+makeAdder(n: Int): (Int)Int =
+    let adder(m: Int): Int = n + m
+    in adder
+apply<a, b>(function: (a)b, value: a): b = function(value)
+compose<a, b, c>(first: (a)b, second: (b)c): (a)c =
+    let composition(value: a): c = second(first(value))
+    in composition
+roll(result: Int): String =
+    if result == 20 then
+        "Critical hit!"
+    else
+        "Regular hit"
+app = apply(id, 8)
+
+$app = apply(compose(makeAdder(pickSecond("Hello!", 8)), roll), 12)
+
+$testList = Prepend(1, Prepend(2, Prepend(3, Empty())))
 
 $[
 range(start: Int, end: Int): List<Int> =
@@ -13,9 +29,6 @@ range(start: Int, end: Int): List<Int> =
     else
         Prepend(start, range(start + 1, end))
 testList = range(1, 8)
-makeAdder(n: Int): (Int)Int =
-    let adder(m: Int): Int = n + m
-    in adder
 map<input, output>(function: (input)output, list: List<input>): List<output> =
     case list of
         Empty -> list
