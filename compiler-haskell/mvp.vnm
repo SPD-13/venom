@@ -8,6 +8,14 @@ makeAdder(n: Int): (Int)Int =
     let adder(m: Int): Int = n + m
     in adder
 apply<a, b>(function: (a)b, value: a): b = function(value)
+reverseApply<a, b>(value: a, function: (a)b): b = function(value)
+$[
+flip<a, b, c>(function: (a, b)c): (b, a)c =
+    let flipped(first: a, second: b): c = function(second, first)
+    in flipped
+reverseApply2 = flip(apply)
+pickSecond2 = flip(pickFirst)
+$]
 compose<a, b, c>(first: (a)b, second: (b)c): (a)c =
     let composition(value: a): c = second(first(value))
     in composition
@@ -16,7 +24,7 @@ roll(result: Int): String =
         "Critical hit!"
     else
         "Regular hit"
-app = apply(id, 8)
+app = reverseApply(8, id)
 
 $app = apply(compose(makeAdder(pickSecond("Hello!", 8)), roll), 12)
 
@@ -45,6 +53,8 @@ reverse<element>(list: List<element>): List<element> =
             Empty -> accumulator
             Prepend -> reverseInner(Prepend(remaining.head, accumulator), remaining.tail)
     in reverseInner(Empty(), list)
+betterReverse<element>(list: List<element>): List<element> =
+    foldLeft(flip(Prepend), Empty(), list)
 biggerTestList = map(makeAdder(4), testList)
 reversedList = reverse(biggerTestList)
 add(n: Int, m: Int): Int = n + m

@@ -19,14 +19,17 @@ type HashTable s k v = B.HashTable s k v
 type Types s = HashTable s String ExpressionType
 
 -- Used to resolve the type of identifiers
-type TypeEnv s = HashTable s String TypeValue
-
--- Used to unify generic parameters
-type TypeArgs s = HashTable s String (Maybe ExpressionType)
-
 data TypeValue
     = Untyped Expression
     | Typed Expression ExpressionType
+type TypeEnv s = HashTable s String TypeValue
+
+-- Used to unify generic parameters
+data ParameterType
+    = Unset
+    | Alias String
+    | Set ExpressionType
+type TypeArgs s = HashTable s String ParameterType
 
 set env = uncurry $ H.insert env
 
@@ -213,7 +216,7 @@ inferExpression types env errors evaluating expression =
             case calleeType of
                 TFunction genericParams parameterTypes returnType -> do
                     typedArguments <- mapM ie arguments
-                    genericArgs <- H.fromList $ zip genericParams $ repeat Nothing
+                    genericArgs <- H.fromList $ zip genericParams $ repeat Unset
                     checkArguments genericArgs errors (map snd typedArguments) parameterTypes
                     resolvedReturnType <- resolveTypeParams genericArgs TUndefined returnType
                     return (Call typedCallee (map fst typedArguments), resolvedReturnType)
@@ -268,35 +271,44 @@ checkArguments typeArgs errors arguments parameters = do
     let lenArgs = length arguments
         lenParams = length parameters
     when (lenArgs /= lenParams) $ reportError errors $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
-    mapM_ (checkArgument typeArgs errors) $ zip [1..] $ zip arguments parameters
+    mapM_ (unifyTypeArgs typeArgs errors) $ zip [1..] $ zip arguments parameters
 
-checkArgument :: TypeArgs s -> STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
-checkArgument typeArgs errors (index, (argType, paramType)) = do
-    resolvedParamType <- resolveTypeParams typeArgs argType paramType
-    let error = Error ("Argument " ++ show index ++ " should be '" ++ show resolvedParamType ++ "' but got '" ++ show argType ++ "'") EOF
-    unless (isSameType argType resolvedParamType) $ reportError errors error
-
-resolveTypeParams :: TypeArgs s -> ExpressionType -> ExpressionType -> ST s ExpressionType
-resolveTypeParams typeArgs argType paramType =
+unifyTypeArgs :: TypeArgs s -> STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
+unifyTypeArgs typeArgs errors (index, (argType, paramType)) = do
+    let error = Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
     case paramType of
         TParameter genericParam -> do
             lookupResult <- H.lookup typeArgs genericParam
             case lookupResult of
-                Just maybeArg -> case maybeArg of
-                    Just arg -> return arg
-                    Nothing -> do
-                        H.insert typeArgs genericParam $ Just argType
-                        return argType
-                Nothing -> return paramType
-        TFunction genericParams paramTypes returnType -> case argType of
-            TFunction _ paramTypes' returnType' ->
+                -- Actual generic parameter from the current function call
+                Just _ -> setTypeParam typeArgs errors genericParam argType
+                -- Generic parameter from the enclosing scope, same as concrete type
+                Nothing -> unless (isSameType argType paramType) $ reportError errors error
+        TFunction _ paramTypes returnType -> case argType of
+            TFunction genericParams paramTypes' returnType' ->
                 if length paramTypes' == length paramTypes then do
                     paramTypes'' <- zipWithM (resolveTypeParams typeArgs) paramTypes' paramTypes
                     returnType'' <- resolveTypeParams typeArgs returnType' returnType
-                    return $ TFunction genericParams paramTypes'' returnType''
+                    return $ TFunction [] paramTypes'' returnType''
                 else return paramType
-            _ -> return paramType
-        _ -> return paramType
+            _ -> reportError errors error
+        -- Concrete type
+        _ -> unless (isSameType argType paramType) $ reportError errors error
+
+setTypeParam :: TypeArgs s -> STRef s [Error] -> String -> ExpressionType -> ST s ()
+setTypeParam typeArgs errors genericParam argType = do
+    let dummy = return ()
+    lookupResult <- H.lookup typeArgs genericParam
+    case lookupResult of
+        Just parameterType -> case parameterType of
+            Unset -> H.insert typeArgs genericParam $ Set argType
+            Alias otherGenericParam -> do
+                H.insert typeArgs genericParam $ Set argType
+                setTypeParam typeArgs errors otherGenericParam argType
+            Set expressionType -> do
+                let error = Error ("Cannot unify types '" ++ show expressionType ++ "' and '" ++ show argType ++ "' for generic type parameter '" ++ genericParam ++ "'") EOF
+                unless (isSameType argType expressionType) $ reportError errors error
+        Nothing -> dummy
 
 isSameType :: ExpressionType -> ExpressionType -> Bool
 isSameType aType bType = case (aType, bType) of

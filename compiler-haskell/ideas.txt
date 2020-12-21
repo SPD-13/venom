@@ -72,3 +72,6 @@ Automatic derivation / default behaviour for common typeclasses
 Put stacks of values in the environment to allow for shadowing
 Component system similar to Unity for records / extensible records / mixins / traits
 Research GADTs
+Research row polymorphism
+Model Venom's type system in Venom to allow for templating / type-level logic (e.g. default JSON serializer)
+Implement effects (including HTML) as external JS drivers
