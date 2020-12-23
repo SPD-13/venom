@@ -309,45 +309,44 @@ unifyFunctionPart typeParams argTypeParams errors paramType argType =
                             case lookupResult of
                                 -- Actual generic parameter from the argument function
                                 Just Unset -> H.insert argTypeParams argGenericParam $ Alias genericParam
-                                Just other -> H.insert typeParams genericParam other
+                                Just (Alias alias) -> aliasParam typeParams genericParam alias
+                                Just (Set exprType) -> H.insert typeParams genericParam $ Set exprType
                                 -- Generic parameter from the enclosing scope, same as concrete type
                                 Nothing -> H.insert typeParams genericParam $ Set argType
                         -- Concrete type
                         _ -> H.insert typeParams genericParam $ Set argType
                 Just (Alias alias) -> unifyFunctionPart typeParams argTypeParams errors (TParameter alias) argType
-                Just (Set exprType) -> unifyWithSetParam argTypeParams errors exprType argType
+                Just (Set exprType) -> unifyWithSetParam typeParams argTypeParams errors exprType argType
                 -- Generic parameter from the enclosing scope, same as concrete type
-                Nothing -> unifyWithSetParam argTypeParams errors paramType argType
+                Nothing -> unifyWithSetParam typeParams argTypeParams errors paramType argType
         -- Concrete type
-        _ -> unifyWithSetParam argTypeParams errors paramType argType
+        _ -> unifyWithSetParam typeParams argTypeParams errors paramType argType
 
-unifyWithSetParam :: TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ()
-unifyWithSetParam argTypeParams errors paramType argType =
+aliasParam :: TypeArgs s -> String -> String -> ST s ()
+aliasParam typeParams base target =
+    if base == target then
+        return ()
+    else do
+        lookupResult <- H.lookup typeParams target
+        case lookupResult of
+            Just (Alias alias) -> aliasParam typeParams base alias
+            _ -> H.insert typeParams base $ Alias target
+
+unifyWithSetParam :: TypeArgs s -> TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ()
+unifyWithSetParam typeParams argTypeParams errors paramType argType = do
+    let check otherType = return ()
     case argType of
-        TParameter genericParam -> do
-            lookupResult <- H.lookup argTypeParams genericParam
+        TParameter argGenericParam -> do
+            lookupResult <- H.lookup argTypeParams argGenericParam
             case lookupResult of
-                -- Actual generic parameter from the current function call
-                Just _ -> setTypeParam typeParams errors genericParam argType
+                -- Actual generic parameter from the argument function
+                Just Unset -> H.insert argTypeParams argGenericParam $ Set paramType
+                Just (Alias alias) -> unifyFunctionPart typeParams argTypeParams errors (TParameter alias) paramType
+                Just (Set exprType) -> check exprType
                 -- Generic parameter from the enclosing scope, same as concrete type
-                Nothing -> unless (isSameType argType paramType) $ reportError errors error
+                Nothing -> check argType
         -- Concrete type
-        _ -> unless (isSameType argType paramType) $ reportError errors error
-
-setTypeParam :: TypeArgs s -> STRef s [Error] -> String -> ExpressionType -> ST s ()
-setTypeParam typeArgs errors genericParam argType = do
-    let dummy = return ()
-    lookupResult <- H.lookup typeArgs genericParam
-    case lookupResult of
-        Just parameterType -> case parameterType of
-            Unset -> H.insert typeArgs genericParam $ Set argType
-            Alias otherGenericParam -> do
-                H.insert typeArgs genericParam $ Set argType
-                setTypeParam typeArgs errors otherGenericParam argType
-            Set expressionType -> do
-                let error = Error ("Cannot unify types '" ++ show expressionType ++ "' and '" ++ show argType ++ "' for generic type parameter '" ++ genericParam ++ "'") EOF
-                unless (isSameType argType expressionType) $ reportError errors error
-        Nothing -> dummy
+        _ -> check argType
 
 isSameType :: ExpressionType -> ExpressionType -> Bool
 isSameType aType bType = case (aType, bType) of
