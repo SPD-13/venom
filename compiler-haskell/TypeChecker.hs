@@ -271,29 +271,8 @@ checkArguments typeParams errors arguments parameters = do
     let lenArgs = length arguments
         lenParams = length parameters
     when (lenArgs /= lenParams) $ reportError errors $ Error ("Expected " ++ show lenParams ++ " arguments but got " ++ show lenArgs) EOF
-    mapM_ (unifyTypeArgs typeParams errors) $ zip [1..] $ zip arguments parameters
-
-unifyTypeArgs :: TypeArgs s -> STRef s [Error] -> (Integer, (ExpressionType, ExpressionType)) -> ST s ()
-unifyTypeArgs typeParams errors (index, (argType, paramType)) = do
-    let error = Error ("Argument " ++ show index ++ " should be '" ++ show paramType ++ "' but got '" ++ show argType ++ "'") EOF
-    case paramType of
-        TParameter genericParam -> do
-            lookupResult <- H.lookup typeParams genericParam
-            case lookupResult of
-                -- Actual generic parameter from the current function call
-                Just _ -> setTypeParam typeParams errors genericParam argType
-                -- Generic parameter from the enclosing scope, same as concrete type
-                Nothing -> unless (isSameType argType paramType) $ reportError errors error
-        TFunction _ paramTypes returnType -> case argType of
-            TFunction genericParams argParamTypes argReturnType ->
-                if length paramTypes == length argParamTypes then do
-                    genericArgs <- H.fromList $ zip genericParams $ repeat Unset
-                    zipWithM_ (unifyFunctionPart typeParams genericArgs errors) paramTypes argParamTypes
-                    unifyFunctionPart typeParams genericArgs errors returnType argReturnType
-                else reportError errors error
-            _ -> reportError errors error
-        -- Concrete type
-        _ -> unless (isSameType argType paramType) $ reportError errors error
+    genericArgs <- H.new
+    zipWithM_ (unifyFunctionPart typeParams genericArgs errors) parameters arguments
 
 unifyFunctionPart :: TypeArgs s -> TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ()
 unifyFunctionPart typeParams argTypeParams errors paramType argType =
@@ -319,6 +298,16 @@ unifyFunctionPart typeParams argTypeParams errors paramType argType =
                 Just (Set exprType) -> unifyWithSetParam typeParams argTypeParams errors exprType argType
                 -- Generic parameter from the enclosing scope, same as concrete type
                 Nothing -> unifyWithSetParam typeParams argTypeParams errors paramType argType
+        TFunction _ paramTypes returnType -> case argType of
+            TFunction genericParams argParamTypes argReturnType ->
+                if length paramTypes == length argParamTypes then do
+                    genericArgs <- if null genericParams
+                        then return argTypeParams
+                        else H.fromList $ zip genericParams $ repeat Unset
+                    zipWithM_ (unifyFunctionPart typeParams genericArgs errors) paramTypes argParamTypes
+                    unifyFunctionPart typeParams genericArgs errors returnType argReturnType
+                else reportError errors $ Error "" EOF
+            _ -> reportError errors $ Error "" EOF
         -- Concrete type
         _ -> unifyWithSetParam typeParams argTypeParams errors paramType argType
 
