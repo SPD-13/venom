@@ -5,6 +5,7 @@ import Control.Monad.ST
 import Data.STRef
 import qualified Data.Map as M
 import Data.List.NonEmpty (NonEmpty((:|)), toList)
+import qualified Data.Set as S
 
 import qualified Data.HashTable.Class as H
 import qualified Data.HashTable.ST.Basic as B
@@ -124,7 +125,7 @@ getIdentifier :: Binding -> String
 getIdentifier (Binding identifier _ _) = identifier
 
 reportError :: STRef s [Error] -> Error -> ST s ()
-reportError errors error = modifySTRef errors (error:)
+reportError errors error = modifySTRef' errors (error:)
 
 inferExpression :: Types s -> TypeEnv s -> STRef s [Error] -> String -> Expression -> ST s (Expression, ExpressionType)
 inferExpression types env errors evaluating expression =
@@ -218,7 +219,7 @@ inferExpression types env errors evaluating expression =
                     typedArguments <- mapM ie arguments
                     typeParams <- H.fromList $ zip genericParams $ repeat Unset
                     checkArguments typeParams errors (map snd typedArguments) parameterTypes
-                    resolvedReturnType <- resolveTypeParams genericArgs TUndefined returnType
+                    resolvedReturnType <- resolveReturnType typeParams returnType
                     return (Call typedCallee (map fst typedArguments), resolvedReturnType)
                 _ -> do
                     err $ Error ("Callee must be a function\nGot: " ++ show calleeType) EOF
@@ -266,6 +267,40 @@ inferExpression types env errors evaluating expression =
             return (expression, identifierType)
         None -> return (None, TUndefined)
 
+resolveReturnType :: TypeArgs s -> ExpressionType -> ST s ExpressionType
+resolveReturnType typeParams returnType = case returnType of
+    TParameter genericParam -> do
+        lookupResult <- H.lookup typeParams genericParam
+        case lookupResult of
+            Just Unset -> return TUndefined
+            Just (Alias alias) -> resolveReturnType typeParams $ TParameter alias
+            Just (Set exprType) -> return exprType
+            Nothing -> return returnType
+    TFunction _ paramTypes rType -> do
+        genericParamSet <- newSTRef S.empty
+        resolvedParamTypes <- mapM (resolveFunctionPart typeParams genericParamSet) paramTypes
+        resolvedReturnType <- resolveFunctionPart typeParams genericParamSet rType
+        genericParams <- readSTRef genericParamSet
+        return $ TFunction (S.toList genericParams) resolvedParamTypes resolvedReturnType
+    _ -> return returnType
+
+resolveFunctionPart :: TypeArgs s -> STRef s (S.Set String) -> ExpressionType -> ST s ExpressionType
+resolveFunctionPart typeParams genericParams part = case part of
+    TParameter genericParam -> do
+        lookupResult <- H.lookup typeParams genericParam
+        case lookupResult of
+            Just Unset -> do
+                modifySTRef' genericParams $ S.insert genericParam
+                return part
+            Just (Alias alias) -> resolveFunctionPart typeParams genericParams $ TParameter alias
+            Just (Set exprType) -> return exprType
+            Nothing -> return part -- TODO: Add this to set of non-generic params and then rename generic params if there are conflicts
+    TFunction _ paramTypes rType -> do
+        resolvedParamTypes <- mapM (resolveFunctionPart typeParams genericParams) paramTypes
+        resolvedReturnType <- resolveFunctionPart typeParams genericParams rType
+        return $ TFunction [] resolvedParamTypes resolvedReturnType
+    _ -> return part
+
 checkArguments :: TypeArgs s -> STRef s [Error] -> [ExpressionType] -> [ExpressionType] -> ST s ()
 checkArguments typeParams errors arguments parameters = do
     let lenArgs = length arguments
@@ -275,41 +310,40 @@ checkArguments typeParams errors arguments parameters = do
     zipWithM_ (unifyFunctionPart typeParams genericArgs errors) parameters arguments
 
 unifyFunctionPart :: TypeArgs s -> TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ()
-unifyFunctionPart typeParams argTypeParams errors paramType argType =
-    case paramType of
-        TParameter genericParam -> do
-            lookupResult <- H.lookup typeParams genericParam
-            case lookupResult of
-                -- Actual generic parameter from the current function call
-                Just Unset ->
-                    case argType of
-                        TParameter argGenericParam -> do
-                            lookupResult <- H.lookup argTypeParams argGenericParam
-                            case lookupResult of
-                                -- Actual generic parameter from the argument function
-                                Just Unset -> H.insert argTypeParams argGenericParam $ Alias genericParam
-                                Just (Alias alias) -> aliasParam typeParams genericParam alias
-                                Just (Set exprType) -> H.insert typeParams genericParam $ Set exprType
-                                -- Generic parameter from the enclosing scope, same as concrete type
-                                Nothing -> H.insert typeParams genericParam $ Set argType
-                        -- Concrete type
-                        _ -> H.insert typeParams genericParam $ Set argType
-                Just (Alias alias) -> unifyFunctionPart typeParams argTypeParams errors (TParameter alias) argType
-                Just (Set exprType) -> unifyWithSetParam typeParams argTypeParams errors exprType argType
-                -- Generic parameter from the enclosing scope, same as concrete type
-                Nothing -> unifyWithSetParam typeParams argTypeParams errors paramType argType
-        TFunction _ paramTypes returnType -> case argType of
-            TFunction genericParams argParamTypes argReturnType ->
-                if length paramTypes == length argParamTypes then do
-                    genericArgs <- if null genericParams
-                        then return argTypeParams
-                        else H.fromList $ zip genericParams $ repeat Unset
-                    zipWithM_ (unifyFunctionPart typeParams genericArgs errors) paramTypes argParamTypes
-                    unifyFunctionPart typeParams genericArgs errors returnType argReturnType
-                else reportError errors $ Error "" EOF
-            _ -> reportError errors $ Error "" EOF
-        -- Concrete type
-        _ -> unifyWithSetParam typeParams argTypeParams errors paramType argType
+unifyFunctionPart typeParams argTypeParams errors paramType argType = case paramType of
+    TParameter genericParam -> do
+        lookupResult <- H.lookup typeParams genericParam
+        case lookupResult of
+            -- Actual generic parameter from the current function call
+            Just Unset ->
+                case argType of
+                    TParameter argGenericParam -> do
+                        lookupResult <- H.lookup argTypeParams argGenericParam
+                        case lookupResult of
+                            -- Actual generic parameter from the argument function
+                            Just Unset -> H.insert argTypeParams argGenericParam $ Alias genericParam
+                            Just (Alias alias) -> aliasParam typeParams genericParam alias
+                            Just (Set exprType) -> H.insert typeParams genericParam $ Set exprType
+                            -- Generic parameter from the enclosing scope, same as concrete type
+                            Nothing -> H.insert typeParams genericParam $ Set argType
+                    -- Concrete type
+                    _ -> H.insert typeParams genericParam $ Set argType
+            Just (Alias alias) -> unifyFunctionPart typeParams argTypeParams errors (TParameter alias) argType
+            Just (Set exprType) -> unifyWithSetParam typeParams argTypeParams errors exprType argType
+            -- Generic parameter from the enclosing scope, same as concrete type
+            Nothing -> unifyWithSetParam typeParams argTypeParams errors paramType argType
+    TFunction _ paramTypes returnType -> case argType of
+        TFunction genericParams argParamTypes argReturnType ->
+            if length paramTypes == length argParamTypes then do
+                genericArgs <- if null genericParams
+                    then return argTypeParams
+                    else H.fromList $ zip genericParams $ repeat Unset
+                zipWithM_ (unifyFunctionPart typeParams genericArgs errors) paramTypes argParamTypes
+                unifyFunctionPart typeParams genericArgs errors returnType argReturnType
+            else reportError errors $ Error "" EOF
+        _ -> reportError errors $ Error "" EOF
+    -- Concrete type
+    _ -> unifyWithSetParam typeParams argTypeParams errors paramType argType
 
 aliasParam :: TypeArgs s -> String -> String -> ST s ()
 aliasParam typeParams base target =

@@ -1,5 +1,5 @@
-List<element> = Empty() | Prepend(head: element, tail: List<element>)
-Result<failure, success> = Failure(value: failure) | Success(value: success)
+$List<element> = Empty() | Prepend(head: element, tail: List<element>)
+$Result<failure, success> = Failure(value: failure) | Success(value: success)
 
 id<a>(var: a): a = var
 pickFirst<a, b>(var1: a, var2: b): a = id(var1)
@@ -9,13 +9,11 @@ makeAdder(n: Int): (Int)Int =
     in adder
 apply<a, b>(function: (a)b, value: a): b = function(value)
 reverseApply<a, b>(value: a, function: (a)b): b = function(value)
-$[
 flip<a, b, c>(function: (a, b)c): (b, a)c =
     let flipped(first: a, second: b): c = function(second, first)
     in flipped
 reverseApply2 = flip(apply)
 pickSecond2 = flip(pickFirst)
-$]
 compose<a, b, c>(first: (a)b, second: (b)c): (a)c =
     let composition(value: a): c = second(first(value))
     in composition
