@@ -4,13 +4,16 @@ $Result<failure, success> = Failure(value: failure) | Success(value: success)
 id<a>(var: a): a = var
 pickFirst<a, b>(var1: a, var2: b): a = id(var1)
 pickSecond<a, b>(var1: a, var2: b): b = pickFirst(var2, var1)
+const<a, b>(value: b): (a)b =
+    let dummy(ignored: a): b = value
+    in dummy
 makeAdder(n: Int): (Int)Int =
     let adder(m: Int): Int = n + m
     in adder
 apply<a, b>(function: (a)b, value: a): b = function(value)
 reverseApply<a, b>(value: a, function: (a)b): b = function(value)
 flip<a, b, c>(function: (a, b)c): (b, a)c =
-    let flipped(first: a, second: b): c = function(second, first)
+    let flipped(second: b, first: a): c = function(first, second)
     in flipped
 reverseApply2 = flip(apply)
 pickSecond2 = flip(pickFirst)
@@ -22,9 +25,12 @@ roll(result: Int): String =
         "Critical hit!"
     else
         "Regular hit"
-app = reverseApply(8, id)
+fn = apply(const, 4)
+fn2 = const(4)
+$app = fn("Hello!")
+$app = reverseApply2(8, id)
 
-$app = apply(compose(makeAdder(pickSecond("Hello!", 8)), roll), 12)
+$app = apply(flip(compose)(roll, makeAdder(pickSecond("Hello!", 8))), 12)
 
 $testList = Prepend(1, Prepend(2, Prepend(3, Empty())))
 

@@ -75,3 +75,5 @@ Research GADTs
 Research row polymorphism
 Model Venom's type system in Venom to allow for templating / type-level logic (e.g. default JSON serializer)
 Implement effects (including HTML) as external JS drivers
+Reverse / minimal evaluation techniques in interpreter / JS (thunks)
+Try to understand type inference formulas for Hindley-Milner

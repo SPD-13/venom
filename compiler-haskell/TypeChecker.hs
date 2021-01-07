@@ -340,6 +340,8 @@ unifyFunctionPart typeParams argTypeParams errors paramType argType = case param
                     else H.fromList $ zip genericParams $ repeat Unset
                 zipWithM_ (unifyFunctionPart typeParams genericArgs errors) paramTypes argParamTypes
                 unifyFunctionPart typeParams genericArgs errors returnType argReturnType
+                unless (null genericParams) $ do
+                    return () -- Loop again and fix set functions
             else reportError errors $ Error "" EOF
         _ -> reportError errors $ Error "" EOF
     -- Concrete type
@@ -357,7 +359,9 @@ aliasParam typeParams base target =
 
 unifyWithSetParam :: TypeArgs s -> TypeArgs s -> STRef s [Error] -> ExpressionType -> ExpressionType -> ST s ()
 unifyWithSetParam typeParams argTypeParams errors paramType argType = do
-    let check otherType = return ()
+    let check otherType =
+            let errorMessage = "Could not unify expected type '" ++ show paramType ++ "' with provided type '" ++ show otherType ++ "'"
+            in unless (isSameType paramType otherType) $ reportError errors $ Error errorMessage EOF -- TODO: Handle generic functions
     case argType of
         TParameter argGenericParam -> do
             lookupResult <- H.lookup argTypeParams argGenericParam
